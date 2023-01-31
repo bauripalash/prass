@@ -57,6 +57,20 @@ impl<'a> Lexer<'a> {
         self.colno += 1;
     }
 
+    fn is_whitespace(&self) -> bool {
+        self.ch.is_ascii_whitespace()
+    }
+
+    fn read_identifier(&mut self) -> Token {
+        let pos = self.pos;
+        while !self.is_at_eof() && self.ch.is_ascii_alphabetic() && !self.is_whitespace() {
+            self.read_char()
+        }
+
+        let result = &self.input[pos..self.pos];
+        Token::Ident(String::from(result))
+    }
+
     pub fn next_token(&mut self) -> token::Token {
         let tok = match self.ch {
             b'+' => Token::Plus,
@@ -67,6 +81,8 @@ impl<'a> Lexer<'a> {
             _ => {
                 if self.ch.is_ascii_digit() {
                     return Token::Number(token::NumberToken::Int(self.read_nunber().into()));
+                } else if self.ch.is_ascii_alphabetic() {
+                    return self.read_identifier();
                 }
 
                 Token::Illegal
