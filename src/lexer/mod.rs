@@ -1,40 +1,40 @@
-use crate::token::{self, Token};
+use crate::token::{NumberToken, Token, TokenType};
 
 #[allow(dead_code)]
-#[derive(Debug)]
-pub struct Lexer<'a> {
-    input: &'a str,
+#[derive(Debug, Default)]
+pub struct Lexer {
+    input: String,
     pos: usize,
     read_pos: usize,
     lineno: usize,
     colno: usize,
-    ch: u8,
+    ch: char,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Self {
+impl Lexer {
+    pub fn new(input: &str) -> Self {
         let mut lexer = Lexer {
-            input,
+            input: input.to_string(),
             pos: 0,
             read_pos: 0,
-            lineno: 0,
+            lineno: 1,
             colno: 0,
-            ch: 0,
+            ..Default::default()
         };
         lexer.read_char();
         lexer
     }
 
     pub fn is_at_eof(&self) -> bool {
-        self.pos >= self.input.len()
+        self.pos >= self.input.chars().count()
     }
 
-    fn read_nunber(&mut self) -> i32 {
+    fn read_number(&mut self) -> i64 {
         let cur_pos = self.pos;
         while !self.is_at_eof() && self.ch.is_ascii_digit() {
             self.read_char()
         }
-        let result = self.input[cur_pos..self.pos].parse::<i32>();
+        let result = self.input[cur_pos..self.pos].parse::<i64>();
         //let result = s[cur_pos..self.pos].parse::<i32>();
         if let Ok(rs) = result {
             rs
@@ -46,10 +46,10 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn read_char(&mut self) {
-        if self.read_pos >= self.input.len() {
-            self.ch = 0;
+        if self.read_pos >= self.input.chars().count() {
+            self.ch = '\0';
         } else {
-            self.ch = self.input.as_bytes()[self.read_pos];
+            self.ch = self.input.chars().nth(self.read_pos).unwrap();
         }
 
         self.pos = self.read_pos;
@@ -57,39 +57,98 @@ impl<'a> Lexer<'a> {
         self.colno += 1;
     }
 
-    fn is_whitespace(&self) -> bool {
-        self.ch.is_ascii_whitespace()
+    fn skip_whitespaces(&mut self) {
+        while self.ch.is_whitespace() {
+            if self.ch == '\n' {
+                self.lineno += 1;
+            }
+            self.read_char();
+        }
     }
 
-    fn read_identifier(&mut self) -> Token {
+    fn read_identifier(&mut self) -> String {
         let pos = self.pos;
-        while !self.is_at_eof() && self.ch.is_ascii_alphabetic() && !self.is_whitespace() {
+        while !self.is_at_eof() && self.ch.is_ascii_alphabetic() {
             self.read_char()
         }
 
         let result = &self.input[pos..self.pos];
-        Token::Ident(String::from(result))
+        String::from(result)
     }
 
-    pub fn next_token(&mut self) -> token::Token {
-        let tok = match self.ch {
-            b'+' => Token::Plus,
-            b'-' => Token::Minus,
-            b'=' => Token::Eq,
-            b':' => Token::Colon,
-            0 => Token::Eof,
+    pub fn next_token(&mut self) -> Token {
+        self.skip_whitespaces();
+        let result: Token;
+        match self.ch {
+            '+' => {
+                result = Token::new(
+                    TokenType::Plus,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                );
+                self.read_char()
+            }
+
+            '=' => {
+                result = Token::new(TokenType::Eq, self.ch.to_string(), self.colno, self.lineno);
+                self.read_char();
+            }
+            '-' => {
+                result = Token::new(
+                    TokenType::Minus,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                );
+                self.read_char();
+            }
+
+            ':' => {
+                result = Token::new(
+                    TokenType::Colon,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                );
+                self.read_char();
+            }
+
+            '\0' => {
+                result = Token::new(TokenType::Eof, self.ch.to_string(), self.colno, self.lineno);
+                self.read_char();
+            }
+
             _ => {
                 if self.ch.is_ascii_digit() {
-                    return Token::Number(token::NumberToken::Int(self.read_nunber().into()));
-                } else if self.ch.is_ascii_alphabetic() {
-                    return self.read_identifier();
-                }
+                    let colno = self.colno;
+                    let lineno = self.lineno;
+                    let n = self.read_number();
 
-                Token::Illegal
+                    result = Token {
+                        ttype: TokenType::Number(NumberToken::Int(n)),
+                        literal: n.to_string(),
+                        colno,
+                        lineno,
+                    }
+                } else if self.ch.is_ascii_alphabetic() {
+                    let colno = self.colno;
+                    let lineno = self.lineno;
+                    let id = self.read_identifier();
+
+                    result = Token::new(TokenType::Ident(id.clone()), id, colno, lineno)
+                } else {
+                    result = Token::new(
+                        TokenType::Illegal,
+                        self.ch.to_string(),
+                        self.colno,
+                        self.lineno,
+                    );
+                    self.read_char();
+                }
             }
         };
-
-        self.read_char();
-        tok
+        //self.read_char();
+        result
     }
 }
