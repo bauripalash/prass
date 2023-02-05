@@ -74,30 +74,27 @@ pub enum TokenType {
     Break,
 }
 
-const KW_NAMES: [&str; 16] = [
-    "include", "a", "then", "and", "or", "fn", "let", "true", "false", "if", "else", "return",
-    "while", "show", "end", "break",
-];
-const KW_TOKS: [TokenType; 16] = [
-    TokenType::Include,
-    TokenType::One,
-    TokenType::Then,
-    TokenType::And,
-    TokenType::Or,
-    TokenType::Func,
-    TokenType::Let,
-    TokenType::True,
-    TokenType::False,
-    TokenType::If,
-    TokenType::Else,
-    TokenType::Return,
-    TokenType::While,
-    TokenType::Show,
-    TokenType::End,
-    TokenType::Break,
-];
 
 pub fn lookup_ident(id: &str) -> Option<TokenType> {
-    let name_index = KW_NAMES.iter().position(|&a| a == id);
-    name_index.map(|pos| KW_TOKS[pos].clone())
+   match id {
+    "include" => Some(TokenType::Include),
+    "ekti" => Some(TokenType::One),
+    "then" => Some(TokenType::Then),
+    "and" => Some(TokenType::And),
+    "or" => Some(TokenType::Or),
+    "fn" => Some(TokenType::Func),
+    "let" => Some(TokenType::Let),
+    "true" => Some(TokenType::True),
+    "false" => Some(TokenType::False),
+    "if" => Some(TokenType::If),
+    "else" => Some(TokenType::Else),
+    "return" => Some(TokenType::Return),
+    "while" => Some(TokenType::While),
+    "show" => Some(TokenType::Show),
+    "end" => Some(TokenType::End),
+    "break" => Some(TokenType::Break),
+    _ => None,
+    } 
+
+   
 }
