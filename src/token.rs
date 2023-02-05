@@ -7,7 +7,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(ttype: TokenType, literal: String, colno: usize, lineno: usize) -> Self {
+    pub const fn new(ttype: TokenType, literal: String, colno: usize, lineno: usize) -> Self {
         Self {
             ttype,
             literal,

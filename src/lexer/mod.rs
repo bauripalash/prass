@@ -1,9 +1,17 @@
-use crate::token::{NumberToken, Token, TokenType};
+use crate::{
+    bn::{is_bn_num, parse_bn_num},
+    token::{NumberToken, Token, TokenType},
+};
+
+fn charlist_to_string(charlist: &[char]) -> String {
+    return charlist.iter().collect::<String>();
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Default)]
-pub struct Lexer {
-    input: String,
+pub struct Lexer<'a> {
+    input: &'a str,
+    charlist: Vec<char>,
     pos: usize,
     read_pos: usize,
     lineno: usize,
@@ -11,10 +19,11 @@ pub struct Lexer {
     ch: char,
 }
 
-impl Lexer {
-    pub fn new(input: &str) -> Self {
+impl<'a> Lexer<'a> {
+    pub fn new(inp: &'a str) -> Self {
         let mut lexer = Lexer {
-            input: input.to_string(),
+            input: inp,
+            charlist: inp.chars().collect(),
             pos: 0,
             read_pos: 0,
             lineno: 1,
@@ -26,30 +35,81 @@ impl Lexer {
     }
 
     pub fn is_at_eof(&self) -> bool {
-        self.pos >= self.input.chars().count()
+        self.pos >= self.charlist.len()
     }
 
-    fn read_number(&mut self) -> i64 {
+    fn peek(&self) -> char {
+        if self.read_pos >= self.charlist.len() {
+            '\0'
+        } else {
+            self.charlist[self.read_pos]
+        }
+    }
+
+    fn read_number(&mut self) -> Option<Token> {
+        //println!("{:?}" , self.input.chars());
         let cur_pos = self.pos;
-        while !self.is_at_eof() && self.ch.is_ascii_digit() {
+        let colno = self.colno;
+        let lineno = self.lineno;
+        while self.ch.is_ascii_digit() || is_bn_num(self.ch) {
             self.read_char()
         }
-        let result = self.input[cur_pos..self.pos].parse::<i64>();
-        //let result = s[cur_pos..self.pos].parse::<i32>();
-        if let Ok(rs) = result {
-            rs
-        } else {
-            0
+
+        let raw_number: String =
+            parse_bn_num(charlist_to_string(&self.charlist[cur_pos..self.pos]));
+        let sdx: Vec<&str> = raw_number.split('.').collect();
+
+        if sdx.len() == 1 {
+            if let Ok(n) = raw_number.parse::<i64>() {
+                return Some(Token::new(
+                    TokenType::Number(NumberToken::Int(n)),
+                    raw_number,
+                    colno,
+                    lineno,
+                ));
+            }
+        } else if sdx.len() == 2 {
+            let n = parse_bn_num(sdx[0].to_string()) + "." + &parse_bn_num(sdx[1].to_string());
+            if let Ok(f) = n.parse::<f64>() {
+                return Some(Token::new(
+                    TokenType::Number(NumberToken::Float(f)),
+                    n,
+                    colno,
+                    lineno,
+                ));
+            }
         }
 
-        //println!("{}" , result);
+        None
+    }
+
+    fn read_string(&mut self) -> Token {
+        let pos = self.pos + 1;
+        let colno = self.colno;
+        let lineno = self.lineno;
+
+        loop {
+            self.read_char();
+            if self.ch == '"' || self.ch == '\0' {
+                break;
+            }
+        }
+
+        let slit = &self.charlist[pos..self.pos];
+
+        Token {
+            ttype: TokenType::String,
+            literal: charlist_to_string(slit),
+            colno,
+            lineno,
+        }
     }
 
     pub fn read_char(&mut self) {
-        if self.read_pos >= self.input.chars().count() {
+        if self.read_pos >= self.charlist.len() {
             self.ch = '\0';
         } else {
-            self.ch = self.input.chars().nth(self.read_pos).unwrap();
+            self.ch = self.charlist[self.read_pos];
         }
 
         self.pos = self.read_pos;
@@ -66,18 +126,32 @@ impl Lexer {
         }
     }
 
+    fn skip_comment(&mut self) {
+        loop {
+            if self.peek() == '\n' || self.peek() == '\0' {
+                break;
+            }
+
+            self.read_char();
+        }
+        self.read_char();
+        self.skip_whitespaces();
+    }
+
     fn read_identifier(&mut self) -> String {
         let pos = self.pos;
         while !self.is_at_eof() && self.ch.is_ascii_alphabetic() {
             self.read_char()
         }
 
-        let result = &self.input[pos..self.pos];
-        String::from(result)
+        charlist_to_string(&self.charlist[pos..self.pos])
     }
 
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespaces();
+        if self.ch == '#' {
+            self.skip_comment();
+        }
         let result: Token;
         match self.ch {
             '+' => {
@@ -87,12 +161,7 @@ impl Lexer {
                     self.colno,
                     self.lineno,
                 );
-                self.read_char()
-            }
-
-            '=' => {
-                result = Token::new(TokenType::Eq, self.ch.to_string(), self.colno, self.lineno);
-                self.read_char();
+                //self.read_char()
             }
             '-' => {
                 result = Token::new(
@@ -101,8 +170,151 @@ impl Lexer {
                     self.colno,
                     self.lineno,
                 );
-                self.read_char();
+                //self.read_char();
             }
+
+            '*' => {
+                result = Token::new(TokenType::Mul, self.ch.to_string(), self.colno, self.lineno);
+                //self.read_char();
+            }
+
+            '/' => {
+                result = Token::new(TokenType::Div, self.ch.to_string(), self.colno, self.lineno)
+            }
+
+            '=' => {
+                if self.peek() == '=' {
+                    let ch = self.ch.to_string();
+                    self.read_char();
+                    result = Token::new(
+                        TokenType::EqEq,
+                        ch + &self.ch.to_string(),
+                        self.colno,
+                        self.lineno,
+                    )
+                } else {
+                    result =
+                        Token::new(TokenType::Eq, self.ch.to_string(), self.colno, self.lineno);
+                }
+                //self.read_char();
+            }
+
+            ';' => {
+                result = Token::new(
+                    TokenType::Semicolon,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                )
+            }
+            ',' => {
+                result = Token::new(
+                    TokenType::Comma,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                )
+            }
+            '<' => {
+                if self.peek() == '=' {
+                    let ch = self.ch.to_string();
+                    self.read_char();
+                    result = Token::new(
+                        TokenType::LTE,
+                        ch + &self.ch.to_string(),
+                        self.colno,
+                        self.lineno,
+                    )
+                } else {
+                    result = Token::new(TokenType::LT, self.ch.to_string(), self.colno, self.lineno)
+                }
+            }
+            '>' => {
+                if self.peek() == '=' {
+                    let ch = self.ch.to_string();
+                    self.read_char();
+                    result = Token::new(
+                        TokenType::GTE,
+                        ch + &self.ch.to_string(),
+                        self.colno,
+                        self.lineno,
+                    )
+                } else {
+                    result = Token::new(TokenType::GT, self.ch.to_string(), self.colno, self.lineno)
+                }
+            }
+            '(' => {
+                result = Token::new(
+                    TokenType::Lparen,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                )
+            }
+            ')' => {
+                result = Token::new(
+                    TokenType::Rparen,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                )
+            }
+            '{' => {
+                result = Token::new(
+                    TokenType::Lbrace,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                )
+            }
+            '}' => {
+                result = Token::new(
+                    TokenType::Rbrace,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                )
+            }
+            '[' => {
+                result = Token::new(
+                    TokenType::LSBracket,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                )
+            }
+            ']' => {
+                result = Token::new(
+                    TokenType::RSBracket,
+                    self.ch.to_string(),
+                    self.colno,
+                    self.lineno,
+                )
+            }
+            '%' => {
+                result = Token::new(TokenType::MOD, self.ch.to_string(), self.colno, self.lineno)
+            }
+            '!' => {
+                if self.peek() == '=' {
+                    let ch = self.ch.to_string();
+                    self.read_char();
+
+                    result = Token::new(
+                        TokenType::NotEq,
+                        ch + &self.ch.to_string(),
+                        self.colno,
+                        self.lineno,
+                    )
+                } else {
+                    result = Token::new(
+                        TokenType::BANG,
+                        self.ch.to_string(),
+                        self.colno,
+                        self.lineno,
+                    )
+                }
+            }
+            '"' => result = self.read_string(),
 
             ':' => {
                 result = Token::new(
@@ -111,32 +323,28 @@ impl Lexer {
                     self.colno,
                     self.lineno,
                 );
-                self.read_char();
+                //self.read_char();
             }
 
             '\0' => {
                 result = Token::new(TokenType::Eof, self.ch.to_string(), self.colno, self.lineno);
-                self.read_char();
+                //self.read_char();
             }
 
             _ => {
-                if self.ch.is_ascii_digit() {
-                    let colno = self.colno;
-                    let lineno = self.lineno;
-                    let n = self.read_number();
-
-                    result = Token {
-                        ttype: TokenType::Number(NumberToken::Int(n)),
-                        literal: n.to_string(),
-                        colno,
-                        lineno,
+                if self.ch.is_ascii_digit() || is_bn_num(self.ch) {
+                    let raw_number = self.read_number();
+                    if let Some(n) = raw_number {
+                        return n;
+                    } else {
+                        panic!("invalid number");
                     }
                 } else if self.ch.is_ascii_alphabetic() {
                     let colno = self.colno;
                     let lineno = self.lineno;
                     let id = self.read_identifier();
 
-                    result = Token::new(TokenType::Ident(id.clone()), id, colno, lineno)
+                    return Token::new(TokenType::Ident(id.clone()), id, colno, lineno);
                 } else {
                     result = Token::new(
                         TokenType::Illegal,
@@ -148,7 +356,7 @@ impl Lexer {
                 }
             }
         };
-        //self.read_char();
+        self.read_char();
         result
     }
 }
