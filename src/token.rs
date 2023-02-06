@@ -74,27 +74,24 @@ pub enum TokenType {
     Break,
 }
 
-
 pub fn lookup_ident(id: &str) -> Option<TokenType> {
-   match id {
-    "include" => Some(TokenType::Include),
-    "ekti" => Some(TokenType::One),
-    "then" => Some(TokenType::Then),
-    "and" => Some(TokenType::And),
-    "or" => Some(TokenType::Or),
-    "fn" => Some(TokenType::Func),
-    "let" => Some(TokenType::Let),
-    "true" => Some(TokenType::True),
-    "false" => Some(TokenType::False),
-    "if" => Some(TokenType::If),
-    "else" => Some(TokenType::Else),
-    "return" => Some(TokenType::Return),
-    "while" => Some(TokenType::While),
-    "show" => Some(TokenType::Show),
-    "end" => Some(TokenType::End),
-    "break" => Some(TokenType::Break),
-    _ => None,
-    } 
-
-   
+    match id {
+        "include" => Some(TokenType::Include),
+        "ekti" => Some(TokenType::One),
+        "then" => Some(TokenType::Then),
+        "and" => Some(TokenType::And),
+        "or" => Some(TokenType::Or),
+        "fn" => Some(TokenType::Func),
+        "let" => Some(TokenType::Let),
+        "true" => Some(TokenType::True),
+        "false" => Some(TokenType::False),
+        "if" => Some(TokenType::If),
+        "else" => Some(TokenType::Else),
+        "return" => Some(TokenType::Return),
+        "while" => Some(TokenType::While),
+        "show" => Some(TokenType::Show),
+        "end" => Some(TokenType::End),
+        "break" => Some(TokenType::Break),
+        _ => None,
+    }
 }

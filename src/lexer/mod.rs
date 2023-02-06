@@ -1,6 +1,6 @@
 use crate::{
-    bn::{is_bn_num, parse_bn_num},
-    token::{NumberToken, Token, TokenType},
+    bn::{is_bn_char, is_bn_num, parse_bn_num},
+    token::{lookup_ident, NumberToken, Token, TokenType},
 };
 
 fn charlist_to_string(charlist: &[char]) -> String {
@@ -140,7 +140,7 @@ impl<'a> Lexer<'a> {
 
     fn read_identifier(&mut self) -> String {
         let pos = self.pos;
-        while !self.is_at_eof() && self.ch.is_ascii_alphabetic() {
+        while !self.is_at_eof() && (self.ch.is_ascii_alphabetic() || is_bn_char(self.ch)) {
             self.read_char()
         }
 
@@ -339,10 +339,16 @@ impl<'a> Lexer<'a> {
                     } else {
                         panic!("invalid number");
                     }
-                } else if self.ch.is_ascii_alphabetic() {
+                } else if (self.ch.is_ascii_alphabetic() || is_bn_char(self.ch))
+                    && !is_bn_num(self.ch)
+                {
                     let colno = self.colno;
                     let lineno = self.lineno;
                     let id = self.read_identifier();
+
+                    if let Some(kw) = lookup_ident(id.as_str()) {
+                        return Token::new(kw, id, colno, lineno);
+                    }
 
                     return Token::new(TokenType::Ident(id.clone()), id, colno, lineno);
                 } else {
@@ -358,5 +364,37 @@ impl<'a> Lexer<'a> {
         };
         self.read_char();
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::token::TokenType;
+
+    use super::Lexer;
+
+    #[test]
+    fn test_lexer_next_token() {
+        let input = "a+b;
+        let name = \"name\"
+        ";
+
+        let ex_tok_types = vec![
+            TokenType::Ident("a".to_string()),
+            TokenType::Plus,
+            TokenType::Ident("b".to_string()),
+            TokenType::Semicolon,
+            TokenType::Let,
+            TokenType::Ident("name".to_string()),
+            TokenType::Eq,
+            TokenType::String,
+        ];
+
+        let mut lx = Lexer::new(input);
+
+        for ett in ex_tok_types {
+            let toktype = lx.next_token().ttype;
+            assert_eq!(ett, toktype)
+        }
     }
 }
