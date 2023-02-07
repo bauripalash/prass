@@ -15,6 +15,15 @@ impl Token {
             lineno,
         }
     }
+
+    pub fn dummy() -> Self {
+        Self {
+            ttype: TokenType::Eof,
+            literal: String::new(),
+            colno: 0,
+            lineno: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,37 +32,37 @@ pub enum NumberToken {
     Int(i64),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TokenType {
     //Illegal; Unknown symbol
     Illegal,
-    Eof,                 //End of file
-    Plus,                // +
-    Minus,               // -
-    String,              // "string"
-    Ident(String),       //let name = <>
-    Number(NumberToken), //100 , 1.0 , 3.14 , -123
-    LSBracket,           // Left Square Bracket [
-    RSBracket,           // Right Square Bracket ]
-    Colon,               // :
-    Comment,             // Comment #
-    Eq,                  // =
-    EqEq,                // ==
-    NotEq,               // !=
-    Mul,                 // *
-    Div,                 // /
-    MOD,                 // %
-    BANG,                // !
-    LT,                  // <
-    LTE,                 // <=
-    GT,                  // >
-    GTE,                 // >=
-    Semicolon,           // ;
-    Comma,               // ,
-    Lparen,              // (
-    Rparen,              // )
-    Lbrace,              // {
-    Rbrace,              // }
+    Eof,       //End of file
+    Plus,      // +
+    Minus,     // -
+    String,    // "string"
+    Ident,     //let name = <>
+    Number,    //100 , 1.0 , 3.14 , -123
+    LSBracket, // Left Square Bracket [
+    RSBracket, // Right Square Bracket ]
+    Colon,     // :
+    Comment,   // Comment #
+    Eq,        // =
+    EqEq,      // ==
+    NotEq,     // !=
+    Mul,       // *
+    Div,       // /
+    MOD,       // %
+    BANG,      // !
+    LT,        // <
+    LTE,       // <=
+    GT,        // >
+    GTE,       // >=
+    Semicolon, // ;
+    Comma,     // ,
+    Lparen,    // (
+    Rparen,    // )
+    Lbrace,    // {
+    Rbrace,    // }
 
     //Keywords
     Include, // Include Keyword

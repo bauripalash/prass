@@ -52,35 +52,24 @@ impl<'a> Lexer<'a> {
         let colno = self.colno;
         let lineno = self.lineno;
         while self.ch.is_ascii_digit() || is_bn_num(self.ch) {
-            self.read_char()
+            self.read_char();
+        }
+
+        if self.ch == '.' {
+            self.read_char();
+            while self.ch.is_ascii_digit() || is_bn_num(self.ch) {
+                self.read_char();
+            }
         }
 
         let raw_number: String =
             parse_bn_num(charlist_to_string(&self.charlist[cur_pos..self.pos]));
-        let sdx: Vec<&str> = raw_number.split('.').collect();
 
-        if sdx.len() == 1 {
-            if let Ok(n) = raw_number.parse::<i64>() {
-                return Some(Token::new(
-                    TokenType::Number(NumberToken::Int(n)),
-                    raw_number,
-                    colno,
-                    lineno,
-                ));
-            }
-        } else if sdx.len() == 2 {
-            let n = parse_bn_num(sdx[0].to_string()) + "." + &parse_bn_num(sdx[1].to_string());
-            if let Ok(f) = n.parse::<f64>() {
-                return Some(Token::new(
-                    TokenType::Number(NumberToken::Float(f)),
-                    n,
-                    colno,
-                    lineno,
-                ));
-            }
+        if raw_number.is_ascii() {
+            Some(Token::new(TokenType::Number, raw_number, colno, lineno))
+        } else {
+            None
         }
-
-        None
     }
 
     fn read_string(&mut self) -> Token {
@@ -350,7 +339,7 @@ impl<'a> Lexer<'a> {
                         return Token::new(kw, id, colno, lineno);
                     }
 
-                    return Token::new(TokenType::Ident(id.clone()), id, colno, lineno);
+                    return Token::new(TokenType::Ident, id, colno, lineno);
                 } else {
                     result = Token::new(
                         TokenType::Illegal,
