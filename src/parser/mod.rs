@@ -165,6 +165,31 @@ impl<'lx> Parser<'lx> {
         left_expr
     }
 
+    fn parse_expr_list(&mut self, end: &TokenType) -> Vec<Rc<ast::Expr>> {
+        let mut el: Vec<Rc<ast::Expr>> = Vec::new();
+        //self.next_token();
+        if self.is_peektok(end) {
+            self.next_token();
+            return el;
+        }
+
+        //self.next_token();
+
+        el.push(self.parse_expr(P_LOWEST));
+
+        while self.is_peektok(&TokenType::Comma) {
+            self.next_token();
+            self.next_token();
+            el.push(self.parse_expr(P_LOWEST))
+        }
+
+        if self.is_peektok(end) {
+            self.next_token();
+        }
+
+        return el;
+    }
+
     fn got_error_jump(&mut self, msg: String) {
         self.errors.push(Error { msg });
         self.next_token();
@@ -176,6 +201,7 @@ impl<'lx> Parser<'lx> {
             TokenType::Number => self.parse_number(),
             TokenType::String => self.parse_string_lit(),
             TokenType::True | TokenType::False => self.parse_bool(),
+            TokenType::LSBracket => self.parse_array_expr(),
             _ => {
                 self.got_error_jump(format!(
                     "Unknown Prefix; Unexpected token {:?}",
@@ -214,6 +240,17 @@ impl<'lx> Parser<'lx> {
             op: op.clone(),
             right,
         }
+    }
+
+    fn parse_array_expr(&mut self) -> Rc<ast::Expr> {
+        let tok = self.curtok.clone();
+        self.next_token();
+        let elms = self.parse_expr_list(&TokenType::RSBracket);
+        self.next_token();
+        Rc::new(ast::Expr::ArrayExpr {
+            token: tok,
+            elems: elms,
+        })
     }
 
     fn parse_identifier(&mut self) -> Rc<ast::Expr> {
