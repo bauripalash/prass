@@ -1,6 +1,6 @@
 use crate::{
     bn::{is_bn_char, is_bn_num, parse_bn_num},
-    token::{lookup_ident, NumberToken, Token, TokenType},
+    token::{lookup_ident, Token, TokenType},
 };
 
 fn charlist_to_string(charlist: &[char]) -> String {

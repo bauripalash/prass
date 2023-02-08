@@ -13,7 +13,7 @@ const P_LOGIC: usize = 3;
 const P_LTGT: usize = 4;
 const P_SUM: usize = 5;
 const P_PROD: usize = 6;
-const P_PREFIX: usize = 7;
+//const P_PREFIX: usize = 7;
 const P_CALL: usize = 8;
 const P_INDEX: usize = 9;
 
@@ -41,7 +41,7 @@ pub struct Parser<'lx> {
     lexer: Lexer<'lx>,
     curtok: Token,
     peektok: Token,
-    errors: Vec<Error>,
+    pub errors: Vec<Error>,
 }
 
 impl<'lx> Parser<'lx> {
@@ -59,40 +59,48 @@ impl<'lx> Parser<'lx> {
     }
 
     fn next_token(&mut self) -> Token {
+        if self.peektok.ttype == TokenType::Illegal {
+            self.errors.push(Error {
+                msg: format!("Illegal token ->{:?}", self.peektok),
+            })
+        }
         self.curtok = self.peektok.clone();
         self.peektok = self.lexer.next_token();
         self.curtok.clone()
     }
 
     fn is_curtok(&self, tok: &TokenType) -> bool {
-        return self.curtok.ttype == *tok;
+        self.curtok.ttype == *tok
     }
 
     fn is_peektok(&self, tok: &TokenType) -> bool {
-        return self.peektok.ttype == *tok;
+        self.peektok.ttype == *tok
     }
 
     fn peek_prec(&self) -> usize {
         get_precedences(&self.peektok.ttype)
     }
 
-    fn cur_prec(&self) -> usize {
-        get_precedences(&self.curtok.ttype)
-    }
+    //fn cur_prec(&self) -> usize {
+    //    get_precedences(&self.curtok.ttype)
+    //}
 
     fn peek(&mut self, tok: &TokenType) -> bool {
         if self.is_peektok(tok) {
             self.next_token();
             true
         } else {
-            self.peek_error(&tok);
+            self.peek_error(tok);
             false
         }
     }
 
     fn peek_error(&mut self, tok: &TokenType) {
         self.errors.push(Error {
-            msg: format!("Expected {:?} but got {:?}", tok, self.curtok.ttype),
+            msg: format!(
+                "{:?} | Expected {:?} but got {:?}",
+                self.curtok, tok, self.peektok.ttype
+            ),
         });
     }
 
@@ -103,11 +111,18 @@ impl<'lx> Parser<'lx> {
 
     fn parse_stmts(&mut self) -> Vec<Rc<ast::Stmt>> {
         let mut stmts: Vec<Rc<ast::Stmt>> = Vec::new();
-        match self.curtok.ttype {
-            TokenType::Let => stmts.push(self.parse_let_stmt()),
-            _ => stmts.push(self.parse_expr_stmt()),
+        while !self.is_curtok(&TokenType::Eof) {
+            stmts.push(self.parse_single_stmt());
+            self.next_token();
         }
         stmts
+    }
+
+    fn parse_single_stmt(&mut self) -> Rc<ast::Stmt> {
+        match self.curtok.ttype {
+            TokenType::Let => self.parse_let_stmt(),
+            _ => self.parse_expr_stmt(),
+        }
     }
 
     fn parse_let_stmt(&mut self) -> Rc<Stmt> {
@@ -130,7 +145,7 @@ impl<'lx> Parser<'lx> {
         }
 
         Rc::new(ast::Stmt::LetStmt {
-            token: ctok.clone(),
+            token: ctok,
             name: id,
             value: val,
         })
@@ -145,7 +160,7 @@ impl<'lx> Parser<'lx> {
             self.next_token();
         }
 
-        return ex;
+        ex
     }
 
     fn parse_expr(&mut self, prec: usize) -> Rc<ast::Expr> {
@@ -187,7 +202,78 @@ impl<'lx> Parser<'lx> {
             self.next_token();
         }
 
-        return el;
+        el
+    }
+    fn parse_func_params(&mut self) -> Rc<Vec<ast::Identifier>> {
+        let mut params: Vec<ast::Identifier> = Vec::new();
+
+        if self.is_peektok(&TokenType::Rparen) {
+            self.next_token();
+            return Rc::new(params);
+        }
+
+        if self.is_curtok(&TokenType::Lparen) {
+            self.next_token();
+        }
+
+        params.push(ast::Identifier {
+            token: self.curtok.clone(),
+            name: self.curtok.literal.clone(),
+        });
+
+        while self.is_peektok(&TokenType::Comma) {
+            self.next_token();
+            self.next_token();
+            params.push(ast::Identifier {
+                token: self.curtok.clone(),
+                name: self.curtok.literal.clone(),
+            })
+        }
+
+        //println!("{:?}" , self.curtok);
+        if self.is_peektok(&TokenType::Rparen) {
+            self.next_token();
+            self.next_token();
+        }
+
+        Rc::new(params)
+    }
+    fn parse_func_expr(&mut self) -> Rc<ast::Expr> {
+        let ct = self.curtok.clone();
+        self.next_token();
+
+        if self.is_curtok(&TokenType::Func) {
+            self.next_token();
+        }
+
+        //if self.is_curtok(&TokenType::Lparen){
+        //    self.next_token();
+        //}
+        //println!("self.curtok => {:?}" , self.curtok);
+        let p = self.parse_func_params();
+        //println!("{:?}" , p);
+        let bs = self.parse_block_stms(&TokenType::End);
+
+        //println!("{:?}" , self.curtok);
+        Rc::new(ast::Expr::FuncExpr {
+            token: ct,
+            params: p,
+            body: bs,
+        })
+    }
+
+    fn parse_block_stms(&mut self, end: &TokenType) -> Rc<Stmt> {
+        let ct = self.curtok.clone();
+        let mut stmts: Vec<Rc<ast::Stmt>> = Vec::new();
+        while !self.is_curtok(end) && !self.is_curtok(&TokenType::Eof) {
+            let s = &self.parse_single_stmt();
+            stmts.push(s.clone());
+            self.next_token();
+        }
+
+        Rc::new(Stmt::BlockStmt { token: ct, stmts })
+
+        //println!("{:?}" , stmts);
     }
 
     fn got_error_jump(&mut self, msg: String) {
@@ -202,7 +288,10 @@ impl<'lx> Parser<'lx> {
             TokenType::String => self.parse_string_lit(),
             TokenType::True | TokenType::False => self.parse_bool(),
             TokenType::LSBracket => self.parse_array_expr(),
+            TokenType::One => self.parse_func_expr(),
+            TokenType::Break => self.parse_break(),
             _ => {
+                //println!("self.curtok => {:?}", self.curtok);
                 self.got_error_jump(format!(
                     "Unknown Prefix; Unexpected token {:?}",
                     self.curtok.ttype
@@ -237,7 +326,7 @@ impl<'lx> Parser<'lx> {
         ast::Expr::InfixExpr {
             token: op.clone(),
             left,
-            op: op.clone(),
+            op,
             right,
         }
     }
@@ -288,19 +377,19 @@ impl<'lx> Parser<'lx> {
 
         if nl.len() == 1 {
             let v = curtok_lit.parse::<i64>().unwrap();
-            return Rc::new(ast::Expr::NumExpr {
+            Rc::new(ast::Expr::NumExpr {
                 token: curtok,
                 value: token::NumberToken::Int(v),
                 is_int: true,
-            });
+            })
         } else {
             // Should be == 2 : TO DO -> Check
             let v = curtok_lit.parse::<f64>().unwrap();
-            return Rc::new(ast::Expr::NumExpr {
+            Rc::new(ast::Expr::NumExpr {
                 token: curtok,
                 value: token::NumberToken::Float(v),
                 is_int: false,
-            });
+            })
         }
     }
 }
