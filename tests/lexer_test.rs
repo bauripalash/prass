@@ -8,12 +8,12 @@ fn test_lexer_next_token() {
         ";
 
     let ex_tok_types = vec![
-        TokenType::Ident("a".to_string()),
+        TokenType::Ident,
         TokenType::Plus,
-        TokenType::Ident("b".to_string()),
+        TokenType::Ident,
         TokenType::Semicolon,
         TokenType::Let,
-        TokenType::Ident("name".to_string()),
+        TokenType::Ident,
         TokenType::Eq,
         TokenType::String,
     ];
