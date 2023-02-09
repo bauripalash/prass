@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[allow(dead_code)]
-const P_LOWEST: usize = 1;
+static P_LOWEST: usize = 1;
 const P_EQUALS: usize = 2;
 const P_LOGIC: usize = 3;
 const P_LTGT: usize = 4;
@@ -560,7 +560,7 @@ impl<'lx> Parser<'lx> {
     fn parse_identifier(&mut self) -> Rc<ast::Expr> {
         Rc::new(ast::Expr::IdentExpr {
             token: self.curtok.clone(),
-            value: self.curtok.literal.to_string(),
+            value: self.curtok.literal.clone(),
         })
     }
 
@@ -570,7 +570,7 @@ impl<'lx> Parser<'lx> {
 
         Identifier {
             token: self.curtok.clone(),
-            name: self.curtok.literal.to_string(),
+            name: self.curtok.literal.clone(),
             is_mod: self.curtok.literal.contains('.'),
         }
     }
@@ -578,7 +578,7 @@ impl<'lx> Parser<'lx> {
     fn parse_string_lit(&mut self) -> Rc<ast::Expr> {
         Rc::new(ast::Expr::StringExpr {
             token: self.curtok.clone(),
-            value: self.curtok.literal.to_string(),
+            value: self.curtok.literal.clone(),
         })
     }
 
@@ -592,7 +592,7 @@ impl<'lx> Parser<'lx> {
     fn parse_break(&mut self) -> Rc<ast::Expr> {
         Rc::new(ast::Expr::Break {
             token: self.curtok.clone(),
-            value: self.curtok.literal.to_string(),
+            value: self.curtok.literal.clone(),
         })
     }
 
