@@ -121,6 +121,8 @@ impl<'lx> Parser<'lx> {
     fn parse_single_stmt(&mut self) -> Rc<ast::Stmt> {
         match self.curtok.ttype {
             TokenType::Let => self.parse_let_stmt(),
+            TokenType::Show => self.parse_show_stmt(),
+            TokenType::Return => self.parse_return_stmt(),
             _ => self.parse_expr_stmt(),
         }
     }
@@ -150,6 +152,47 @@ impl<'lx> Parser<'lx> {
             value: val,
         })
     }
+
+    fn parse_show_stmt(&mut self) -> Rc<ast::Stmt> {
+        let ctok = self.curtok.clone();
+        self.next_token();
+        if self.is_curtok(&TokenType::Lparen) {
+            self.next_token();
+        }
+        let exprs = self.parse_expr_list(&TokenType::Rparen);
+        println!("expr->{:?}", exprs);
+
+        Rc::new(ast::Stmt::ShowStmt {
+            token: ctok,
+            value: exprs,
+        })
+    }
+
+    fn parse_return_stmt(&mut self) -> Rc<ast::Stmt> {
+        let ctok = self.curtok.clone();
+
+        self.next_token();
+
+        if self.is_curtok(&TokenType::Lparen) {
+            self.next_token();
+        }
+
+        let expr = self.parse_expr_list(&TokenType::Rparen);
+        if expr.is_empty() {
+            return Rc::new(Stmt::ReturnStmt {
+                token: ctok,
+                rval: Rc::new(ast::Expr::NullExpr),
+            });
+        }
+
+        //println!("expr->{expr:?}");
+
+        Rc::new(Stmt::ReturnStmt {
+            token: ctok,
+            rval: expr[0].clone(),
+        })
+    }
+
     fn parse_expr_stmt(&mut self) -> Rc<Stmt> {
         let ex = Rc::new(ast::Stmt::ExprStmt {
             token: self.curtok.clone(),
@@ -182,7 +225,11 @@ impl<'lx> Parser<'lx> {
 
     fn parse_expr_list(&mut self, end: &TokenType) -> Vec<Rc<ast::Expr>> {
         let mut el: Vec<Rc<ast::Expr>> = Vec::new();
+        //println!("{:?}", self.curtok);
         //self.next_token();
+        if !self.is_curtok(end) {
+            el.push(self.parse_expr(P_LOWEST));
+        }
         if self.is_peektok(end) {
             self.next_token();
             return el;
@@ -190,7 +237,7 @@ impl<'lx> Parser<'lx> {
 
         //self.next_token();
 
-        el.push(self.parse_expr(P_LOWEST));
+        //println!("{:?}", el);
 
         while self.is_peektok(&TokenType::Comma) {
             self.next_token();
@@ -206,14 +253,12 @@ impl<'lx> Parser<'lx> {
     }
     fn parse_func_params(&mut self) -> Rc<Vec<ast::Identifier>> {
         let mut params: Vec<ast::Identifier> = Vec::new();
-
-        if self.is_peektok(&TokenType::Rparen) {
-            self.next_token();
-            return Rc::new(params);
-        }
-
         if self.is_curtok(&TokenType::Lparen) {
             self.next_token();
+        }
+        if self.is_curtok(&TokenType::Rparen) {
+            self.next_token();
+            return Rc::new(params);
         }
 
         params.push(ast::Identifier {

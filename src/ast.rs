@@ -108,6 +108,7 @@ pub enum Expr {
         token: Token,
         pairs: Vec<(Rc<Expr>, Rc<Expr>)>,
     },
+    NullExpr,
     ErrExpr,
 }
 
@@ -210,6 +211,7 @@ impl Display for Expr {
             }
 
             Self::ErrExpr => "err()".to_string(),
+            Self::NullExpr => "null".to_string(),
         };
 
         write!(f, "{}", result)

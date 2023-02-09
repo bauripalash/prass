@@ -2,7 +2,7 @@ use pras::{lexer::Lexer, parser::Parser};
 
 fn main() {
     //le&t mut a = Lexer::new("1+2-1100 hello পলাশ");
-    let a = Lexer::new("1+2+3");
+    let a = Lexer::new("dhori a = ekti kaj(a) return a+1+2 sesh;");
     //while !a.is_at_eof() {
     //    println!("{:?}", a.next_token());
     //}
@@ -14,6 +14,6 @@ fn main() {
             println!("ERR=>{}", err.msg);
         }
     } else {
-        println!("{}", pp)
+        println!("{pp}")
     }
 }
