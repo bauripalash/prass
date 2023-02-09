@@ -20,6 +20,8 @@ fn test_exprs() {
         ("1+2+3", "inf(inf((1)+(2))+(3))"),
         ("1+2*3", "inf((1)+inf((2)*(3)))"),
         ("show(1)", "show<(1),>"),
+        ("return(1)", "ret<(1)>"),
+        ("include(\"h.pank\")", "inc(str(h.pank))"),
     ]);
 
     for (k, v) in test_cases {

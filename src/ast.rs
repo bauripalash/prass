@@ -81,11 +81,16 @@ pub enum Expr {
         left: Rc<Expr>,
         index: Rc<Expr>,
     },
+
+    IncludeExpr {
+        token: Token,
+        filename: Rc<Expr>,
+    },
     IfExpr {
         token: Token,
         cond: Rc<Expr>,
-        trueblock: Rc<Expr>,
-        elseblock: Option<Rc<Expr>>,
+        trueblock: Rc<Stmt>,
+        elseblock: Option<Rc<Stmt>>,
     },
     WhileExpr {
         token: Token,
@@ -186,6 +191,9 @@ impl Display for Expr {
 
                 format!("func({}:{})", ps, body)
             }
+            Self::IncludeExpr { token: _, filename } => {
+                format!("inc({})", filename)
+            }
 
             Self::CallExpr {
                 token: _,
@@ -236,11 +244,6 @@ pub enum Stmt {
         value: Vec<Rc<Expr>>,
     },
 
-    IncludeStmt {
-        token: Token,
-        filename: Rc<Expr>,
-    },
-
     BlockStmt {
         token: Token,
         stmts: Vec<Rc<Stmt>>,
@@ -272,10 +275,6 @@ impl Display for Stmt {
                     res.push_str(format!("{},", v).as_str())
                 }
                 format!("show<{}>", res)
-            }
-
-            Self::IncludeStmt { token: _, filename } => {
-                format!("inc<{}>", filename)
             }
 
             Stmt::BlockStmt { token: _, stmts } => {
