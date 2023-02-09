@@ -71,6 +71,21 @@ impl<'a> Lexer<'a> {
             None
         }
     }
+    fn read_identifier(&mut self) -> String {
+        let pos = self.pos;
+        while !self.is_at_eof() && (self.ch.is_ascii_alphabetic() || is_bn_char(self.ch)) {
+            self.read_char()
+        }
+
+        if self.ch == '.' {
+            self.read_char();
+            while !self.is_at_eof() && (self.ch.is_ascii_alphabetic() || is_bn_char(self.ch)) {
+                self.read_char()
+            }
+        }
+
+        charlist_to_string(&self.charlist[pos..self.pos])
+    }
 
     fn read_string(&mut self) -> Token {
         let pos = self.pos + 1;
@@ -125,15 +140,6 @@ impl<'a> Lexer<'a> {
         }
         self.read_char();
         self.skip_whitespaces();
-    }
-
-    fn read_identifier(&mut self) -> String {
-        let pos = self.pos;
-        while !self.is_at_eof() && (self.ch.is_ascii_alphabetic() || is_bn_char(self.ch)) {
-            self.read_char()
-        }
-
-        charlist_to_string(&self.charlist[pos..self.pos])
     }
 
     pub fn next_token(&mut self) -> Token {

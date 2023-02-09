@@ -4,7 +4,7 @@ fn main() {
     //le&t mut a = Lexer::new("1+2-1100 hello পলাশ");
     let a = Lexer::new(
         "
-      a(1);
+     let a = ekti kaj(b) 1 + 2 sesh;
     ",
     );
     //while !a.is_at_eof() {
@@ -18,6 +18,6 @@ fn main() {
             println!("ERR=>{}", err.msg);
         }
     } else {
-        println!("{pp:#?}")
+        println!("{pp}")
     }
 }

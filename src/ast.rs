@@ -14,25 +14,26 @@ pub struct Program {
     pub stmts: Vec<Rc<Stmt>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identifier {
     pub token: Token,
     pub name: String,
+    pub is_mod: bool,
 }
 
 impl Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut res = String::new();
         for s in &self.stmts {
-            res.push_str(format!("{};", s).as_str())
+            res.push_str(format!("{s};").as_str())
         }
-        write!(f, "PROG[{}]", res)
+        write!(f, "PROG[{res}]")
     }
 }
 
 impl Display for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "id<{}>", self.name)
+        write!(f, "id<{}|{}>", self.name, self.is_mod)
     }
 }
 
@@ -120,53 +121,53 @@ pub enum Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let result: String = match self {
-            Expr::NumExpr {
+            Self::NumExpr {
                 token: _,
                 value,
                 is_int: _,
             } => match value {
-                NumberToken::Int(i) => format!("({})", i),
-                NumberToken::Float(f) => format!("({})", f),
+                NumberToken::Int(i) => format!("({i})"),
+                NumberToken::Float(f) => format!("({f})"),
             },
-            Expr::IdentExpr { token: _, value } => format!("ident({})", value),
-            Expr::BoolExpr { token: _, value } => format!("bool({})", value),
-            Expr::StringExpr { token: _, value } => format!("str({})", value),
-            Expr::Break { token: _, value: _ } => format!("break()"),
-            Expr::PrefixExpr {
+            Self::IdentExpr { token: _, value } => format!("ident({value})"),
+            Self::BoolExpr { token: _, value } => format!("bool({value})"),
+            Self::StringExpr { token: _, value } => format!("str({value})"),
+            Self::Break { token: _, value: _ } => "break()".to_string(),
+            Self::PrefixExpr {
                 token: _,
                 op,
                 right,
             } => format!("pre({}{})", op.literal, right),
-            Expr::InfixExpr {
+            Self::InfixExpr {
                 token: _,
                 left,
                 op,
                 right,
             } => format!("inf({}{}{})", left, op.literal, right),
-            Expr::ArrayExpr { token: _, elems } => {
+            Self::ArrayExpr { token: _, elems } => {
                 let mut arrs: String = String::new();
                 for e in elems {
-                    arrs.push_str(format!("{}", e).as_str());
+                    arrs.push_str(format!("{e}").as_str());
                 }
-                format!("arr({})", arrs)
+                format!("arr({arrs})")
             }
-            Expr::IndexExpr {
+            Self::IndexExpr {
                 token: _,
                 left,
                 index,
             } => {
-                format!("index({}:{})", left, index)
+                format!("index({left}:{index})")
             }
-            Expr::IfExpr {
+            Self::IfExpr {
                 token: _,
                 cond,
                 trueblock,
                 elseblock,
             } => {
                 if let Some(eb) = elseblock {
-                    format!("if({}:{}:{})", cond, trueblock, eb)
+                    format!("if({cond}:{trueblock}:{eb})")
                 } else {
-                    format!("if({}:{})", cond, trueblock)
+                    format!("if({cond}:{trueblock})")
                 }
             }
 
@@ -175,7 +176,7 @@ impl Display for Expr {
                 cond,
                 stmts,
             } => {
-                format!("while({}:{})", cond, stmts)
+                format!("while({cond}:{stmts})")
             }
 
             Self::FuncExpr {
@@ -185,14 +186,14 @@ impl Display for Expr {
             } => {
                 let mut ps = String::new();
 
-                for p in params.to_vec() {
-                    ps.push_str(format!("{}", p).as_str())
+                for p in &**params {
+                    ps.push_str(format!("{p}").as_str())
                 }
 
-                format!("func({}:{})", ps, body)
+                format!("func({ps}:{body})")
             }
             Self::IncludeExpr { token: _, filename } => {
-                format!("inc({})", filename)
+                format!("inc({filename})")
             }
 
             Self::CallExpr {
@@ -202,27 +203,27 @@ impl Display for Expr {
             } => {
                 let mut ar = String::new();
                 for a in args {
-                    ar.push_str(format!("{},", a).as_str());
+                    ar.push_str(format!("{a},").as_str());
                 }
 
-                format!("call({}:{})", func, ar)
+                format!("call({func}:{ar})")
             }
 
             Self::HashExpr { token: _, pairs } => {
                 let mut hp = String::new();
 
                 for (a, b) in pairs {
-                    hp.push_str(format!("[{}:{}]", a, b).as_str());
+                    hp.push_str(format!("[{a}:{b}]").as_str());
                 }
 
-                format!("hash({})", hp)
+                format!("hash({hp})")
             }
 
             Self::ErrExpr => "err()".to_string(),
             Self::NullExpr => "null".to_string(),
         };
 
-        write!(f, "{}", result)
+        write!(f, "{result}")
     }
 }
 
@@ -258,40 +259,40 @@ pub enum Stmt {
 impl Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let result: String = match self {
-            Stmt::LetStmt {
+            Self::LetStmt {
                 token: _,
                 name,
                 value,
             } => {
-                format!("let<{}:{}>", name, value)
+                format!("let<{name}:{value}>")
             }
             Self::ReturnStmt { token: _, rval } => {
-                format!("ret<{}>", rval)
+                format!("ret<{rval}>")
             }
 
             Self::ShowStmt { token: _, value } => {
                 let mut res = String::new();
                 for v in value {
-                    res.push_str(format!("{},", v).as_str())
+                    res.push_str(format!("{v},").as_str())
                 }
-                format!("show<{}>", res)
+                format!("show<{res}>")
             }
 
-            Stmt::BlockStmt { token: _, stmts } => {
+            Self::BlockStmt { token: _, stmts } => {
                 let mut res = String::new();
 
                 for s in stmts {
-                    res.push_str(format!("{};", s).as_str());
+                    res.push_str(format!("{s};").as_str());
                 }
 
-                format!("blk<{}>", res)
+                format!("blk<{res}>")
             }
 
             Self::ExprStmt { token: _, expr } => {
-                format!("{}", expr)
+                format!("{expr}")
             }
         };
 
-        write!(f, "{}", result)
+        write!(f, "{result}")
     }
 }

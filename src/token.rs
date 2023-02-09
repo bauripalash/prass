@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub ttype: TokenType,
     pub literal: String,
@@ -16,7 +16,7 @@ impl Token {
         }
     }
 
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         Self {
             ttype: TokenType::Eof,
             literal: String::new(),

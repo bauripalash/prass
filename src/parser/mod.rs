@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    ast::{self, Program, Stmt},
+    ast::{self, Identifier, Program, Stmt},
     lexer::Lexer,
     token::{self, Token, TokenType},
 };
@@ -13,7 +13,7 @@ const P_LOGIC: usize = 3;
 const P_LTGT: usize = 4;
 const P_SUM: usize = 5;
 const P_PROD: usize = 6;
-//const P_PREFIX: usize = 7;
+const P_PREFIX: usize = 7;
 const P_CALL: usize = 8;
 const P_INDEX: usize = 9;
 
@@ -26,7 +26,6 @@ pub const fn get_precedences(tt: &TokenType) -> usize {
         TokenType::Div | TokenType::Mul | TokenType::MOD => P_PROD,
         TokenType::Lparen => P_CALL,
         TokenType::LSBracket => P_INDEX,
-
         _ => P_LOWEST,
     }
 }
@@ -58,6 +57,12 @@ impl<'lx> Parser<'lx> {
         p
     }
 
+    //
+    //
+    //  Helper Functions
+    //
+    //
+
     fn next_token(&mut self) -> Token {
         if self.peektok.ttype == TokenType::Illegal {
             self.errors.push(Error {
@@ -77,7 +82,7 @@ impl<'lx> Parser<'lx> {
         self.peektok.ttype == *tok
     }
 
-    fn peek_prec(&self) -> usize {
+    const fn peek_prec(&self) -> usize {
         get_precedences(&self.peektok.ttype)
     }
 
@@ -95,6 +100,15 @@ impl<'lx> Parser<'lx> {
         }
     }
 
+    fn skip(&mut self, tok: &TokenType) -> bool {
+        if self.is_curtok(tok) {
+            self.next_token();
+            return true;
+        }
+
+        false
+    }
+
     fn peek_error(&mut self, tok: &TokenType) {
         self.errors.push(Error {
             msg: format!(
@@ -104,10 +118,27 @@ impl<'lx> Parser<'lx> {
         });
     }
 
+    fn got_error_jump(&mut self, msg: String) {
+        self.errors.push(Error { msg });
+        self.next_token();
+    }
+
+    //
+    //
+    // Entry Point
+    //
+    //
+
     pub fn parse_program(&mut self) -> ast::Program {
         let stms = self.parse_stmts();
         Program { stmts: stms }
     }
+
+    //
+    //
+    // Parse Statments
+    //
+    //
 
     fn parse_stmts(&mut self) -> Vec<Rc<ast::Stmt>> {
         let mut stmts: Vec<Rc<ast::Stmt>> = Vec::new();
@@ -131,10 +162,7 @@ impl<'lx> Parser<'lx> {
         let ctok = self.curtok.clone();
         self.next_token();
 
-        let id = ast::Identifier {
-            token: self.curtok.clone(),
-            name: self.curtok.literal.clone(),
-        };
+        let id = self.parse_as_identifier();
 
         if self.peek(&TokenType::Eq) {
             self.next_token();
@@ -160,7 +188,7 @@ impl<'lx> Parser<'lx> {
             self.next_token();
         }
         let exprs = self.parse_expr_list(&TokenType::Rparen);
-        println!("expr->{:?}", exprs);
+        //println!("expr->{:?}", exprs);
 
         Rc::new(ast::Stmt::ShowStmt {
             token: ctok,
@@ -183,8 +211,6 @@ impl<'lx> Parser<'lx> {
             self.next_token();
         }
 
-        //println!("expr->{expr:?}");
-
         Rc::new(Stmt::ReturnStmt {
             token: ctok,
             rval: expr,
@@ -204,173 +230,6 @@ impl<'lx> Parser<'lx> {
         ex
     }
 
-    fn parse_if_else_expr(&mut self) -> Rc<ast::Expr> {
-        let curtok = self.curtok.clone();
-
-        self.next_token();
-
-        if self.is_curtok(&TokenType::Lparen) {
-            self.next_token();
-        }
-
-        let cond_expr = self.parse_expr(P_LOWEST);
-
-        // println!("1->{:?}" , self.curtok);
-        if self.is_peektok(&TokenType::Rparen) {
-            self.next_token();
-            self.next_token();
-        }
-
-        // println!("{:?}" , self.curtok);
-        if self.is_curtok(&TokenType::Then) {
-            self.next_token();
-        }
-
-        let true_block = self.parse_block_stms(&TokenType::Else);
-        let mut else_block: Option<Rc<Stmt>> = None;
-
-        if self.is_curtok(&TokenType::Else) {
-            self.next_token();
-        }
-
-        if !self.is_curtok(&TokenType::End) {
-            else_block = Some(self.parse_block_stms(&TokenType::End))
-        }
-
-        //println!("{:?}" , self.curtok);
-
-        Rc::new(ast::Expr::IfExpr {
-            token: curtok,
-            cond: cond_expr,
-            trueblock: true_block,
-            elseblock: else_block,
-        })
-    }
-
-    fn parse_while_expr(&mut self) -> Rc<ast::Expr> {
-        let ctok = self.curtok.clone();
-        self.next_token();
-        if self.is_curtok(&TokenType::Lparen) {
-            self.next_token();
-        }
-
-        let cond_expr = self.parse_expr(P_LOWEST);
-
-        // println!("1->{:?}" , self.curtok);
-        if self.is_peektok(&TokenType::Rparen) {
-            self.next_token();
-            self.next_token();
-        }
-        let loop_block = self.parse_block_stms(&TokenType::End);
-
-        Rc::new(ast::Expr::WhileExpr {
-            token: ctok,
-            cond: cond_expr,
-            stmts: loop_block,
-        })
-    }
-
-    fn parse_expr(&mut self, prec: usize) -> Rc<ast::Expr> {
-        let mut left_expr = self.parse_prefix_expr();
-
-        while !self.is_peektok(&TokenType::Semicolon) && prec < self.peek_prec() {
-            self.next_token();
-            //println!("{:?}->{:?}" ,self.curtok , "");
-            let infx = self.parse_infix_expr(left_expr.clone());
-            if let Ok(ix) = infx {
-                left_expr = ix;
-            } else {
-                return left_expr;
-            }
-        }
-
-        left_expr
-    }
-
-    fn parse_expr_list(&mut self, end: &TokenType) -> Vec<Rc<ast::Expr>> {
-        let mut el: Vec<Rc<ast::Expr>> = Vec::new();
-        //println!("{:?}", self.curtok);
-        //self.next_token();
-        if !self.is_curtok(end) {
-            el.push(self.parse_expr(P_LOWEST));
-        }
-        if self.is_peektok(end) {
-            self.next_token();
-            return el;
-        }
-
-        //self.next_token();
-
-        //println!("{:?}", el);
-
-        while self.is_peektok(&TokenType::Comma) {
-            self.next_token();
-            self.next_token();
-            el.push(self.parse_expr(P_LOWEST))
-        }
-
-        if self.is_peektok(end) {
-            self.next_token();
-        }
-
-        el
-    }
-    fn parse_func_params(&mut self) -> Rc<Vec<ast::Identifier>> {
-        let mut params: Vec<ast::Identifier> = Vec::new();
-        if self.is_curtok(&TokenType::Lparen) {
-            self.next_token();
-        }
-        if self.is_curtok(&TokenType::Rparen) {
-            self.next_token();
-            return Rc::new(params);
-        }
-
-        params.push(ast::Identifier {
-            token: self.curtok.clone(),
-            name: self.curtok.literal.clone(),
-        });
-
-        while self.is_peektok(&TokenType::Comma) {
-            self.next_token();
-            self.next_token();
-            params.push(ast::Identifier {
-                token: self.curtok.clone(),
-                name: self.curtok.literal.clone(),
-            })
-        }
-
-        //println!("{:?}" , self.curtok);
-        if self.is_peektok(&TokenType::Rparen) {
-            self.next_token();
-            self.next_token();
-        }
-
-        Rc::new(params)
-    }
-    fn parse_func_expr(&mut self) -> Rc<ast::Expr> {
-        let ct = self.curtok.clone();
-        self.next_token();
-
-        if self.is_curtok(&TokenType::Func) {
-            self.next_token();
-        }
-
-        //if self.is_curtok(&TokenType::Lparen){
-        //    self.next_token();
-        //}
-        //println!("self.curtok => {:?}" , self.curtok);
-        let p = self.parse_func_params();
-        //println!("{:?}" , p);
-        let bs = self.parse_block_stms(&TokenType::End);
-
-        //println!("{:?}" , self.curtok);
-        Rc::new(ast::Expr::FuncExpr {
-            token: ct,
-            params: p,
-            body: bs,
-        })
-    }
-
     fn parse_block_stms(&mut self, end: &TokenType) -> Rc<Stmt> {
         let ct = self.curtok.clone();
         let mut stmts: Vec<Rc<ast::Stmt>> = Vec::new();
@@ -381,14 +240,13 @@ impl<'lx> Parser<'lx> {
         }
 
         Rc::new(Stmt::BlockStmt { token: ct, stmts })
-
-        //println!("{:?}" , stmts);
     }
 
-    fn got_error_jump(&mut self, msg: String) {
-        self.errors.push(Error { msg });
-        self.next_token();
-    }
+    //
+    //
+    // Parse Expressions
+    //
+    //
 
     fn parse_prefix_expr(&mut self) -> Rc<ast::Expr> {
         match self.curtok.ttype {
@@ -402,6 +260,18 @@ impl<'lx> Parser<'lx> {
             TokenType::Include => self.parse_include_expr(),
             TokenType::If => self.parse_if_else_expr(),
             TokenType::While => self.parse_while_expr(),
+            TokenType::Lparen => self.parse_grouped_expr(),
+            TokenType::BANG | TokenType::Minus => {
+                let op = self.curtok.clone();
+                self.next_token();
+                let r = self.parse_expr(P_PREFIX);
+                Rc::new(ast::Expr::PrefixExpr {
+                    token: op.clone(),
+                    op,
+                    right: r,
+                })
+            }
+            TokenType::Lbrace => self.parse_hash_expr(),
             _ => {
                 //println!("self.curtok => {:?}", self.curtok);
                 self.got_error_jump(format!(
@@ -429,12 +299,13 @@ impl<'lx> Parser<'lx> {
             | TokenType::Or
             | TokenType::MOD => Ok(Rc::new(self.parse_infix_op(left))),
             TokenType::Lparen => Ok(self.parse_call_expr(left)),
+            TokenType::LSBracket => Ok(self.parse_index_expr(left)),
+
             _ => Err(true),
         }
     }
 
     fn parse_infix_op(&mut self, left: Rc<ast::Expr>) -> ast::Expr {
-        //println!("PREFIX_OP -> {:?}->{:?}" , left , self.curtok);
         let op = self.curtok.clone();
         let prec = get_precedences(&op.ttype);
         self.next_token();
@@ -446,6 +317,196 @@ impl<'lx> Parser<'lx> {
             op,
             right,
         }
+    }
+    fn parse_expr(&mut self, prec: usize) -> Rc<ast::Expr> {
+        let mut left_expr = self.parse_prefix_expr();
+
+        while !self.is_peektok(&TokenType::Semicolon) && prec < self.peek_prec() {
+            self.next_token();
+            let infx = self.parse_infix_expr(left_expr.clone());
+            if let Ok(ix) = infx {
+                left_expr = ix;
+            } else {
+                return left_expr;
+            }
+        }
+
+        left_expr
+    }
+
+    fn parse_hash_expr(&mut self) -> Rc<ast::Expr> {
+        let mut hash_pairs: Vec<(Rc<ast::Expr>, Rc<ast::Expr>)> = Vec::new();
+
+        let curtok = self.curtok.clone();
+        self.next_token();
+
+        while !self.is_curtok(&TokenType::Rbrace) {
+            let k = self.parse_expr(P_LOWEST);
+            self.next_token();
+
+            if self.is_curtok(&TokenType::Colon) {
+                self.next_token();
+            }
+            let v = self.parse_expr(P_LOWEST);
+            self.next_token();
+            hash_pairs.push((k, v));
+
+            if !self.skip(&TokenType::Comma) {
+                break;
+            }
+        }
+
+        Rc::new(ast::Expr::HashExpr {
+            token: curtok,
+            pairs: hash_pairs,
+        })
+    }
+
+    fn parse_index_expr(&mut self, arr: Rc<ast::Expr>) -> Rc<ast::Expr> {
+        let curtok = self.curtok.clone();
+        self.next_token();
+        let indx = self.parse_expr(P_LOWEST);
+        self.next_token();
+        Rc::new(ast::Expr::IndexExpr {
+            token: curtok,
+            left: arr,
+            index: indx,
+        })
+    }
+
+    fn parse_expr_list(&mut self, end: &TokenType) -> Vec<Rc<ast::Expr>> {
+        let mut el: Vec<Rc<ast::Expr>> = Vec::new();
+        if !self.is_curtok(end) {
+            el.push(self.parse_expr(P_LOWEST));
+        }
+        if self.is_peektok(end) {
+            self.next_token();
+            return el;
+        }
+
+        while self.is_peektok(&TokenType::Comma) {
+            self.next_token();
+            self.next_token();
+            el.push(self.parse_expr(P_LOWEST))
+        }
+
+        if self.is_peektok(end) {
+            self.next_token();
+        }
+
+        el
+    }
+
+    fn parse_grouped_expr(&mut self) -> Rc<ast::Expr> {
+        self.next_token();
+        let exp = self.parse_expr(P_LOWEST);
+        self.next_token();
+        exp
+    }
+
+    fn parse_if_else_expr(&mut self) -> Rc<ast::Expr> {
+        let curtok = self.curtok.clone();
+
+        self.next_token();
+
+        if self.is_curtok(&TokenType::Lparen) {
+            self.next_token();
+        }
+
+        let cond_expr = self.parse_expr(P_LOWEST);
+
+        if self.is_peektok(&TokenType::Rparen) {
+            self.next_token();
+            self.next_token();
+        }
+
+        if self.is_curtok(&TokenType::Then) {
+            self.next_token();
+        }
+
+        let true_block = self.parse_block_stms(&TokenType::Else);
+        let mut else_block: Option<Rc<Stmt>> = None;
+
+        if self.is_curtok(&TokenType::Else) {
+            self.next_token();
+        }
+
+        if !self.is_curtok(&TokenType::End) {
+            else_block = Some(self.parse_block_stms(&TokenType::End))
+        }
+
+        Rc::new(ast::Expr::IfExpr {
+            token: curtok,
+            cond: cond_expr,
+            trueblock: true_block,
+            elseblock: else_block,
+        })
+    }
+
+    fn parse_while_expr(&mut self) -> Rc<ast::Expr> {
+        let ctok = self.curtok.clone();
+        self.next_token();
+        if self.is_curtok(&TokenType::Lparen) {
+            self.next_token();
+        }
+
+        let cond_expr = self.parse_expr(P_LOWEST);
+
+        if self.is_peektok(&TokenType::Rparen) {
+            self.next_token();
+            self.next_token();
+        }
+        let loop_block = self.parse_block_stms(&TokenType::End);
+
+        Rc::new(ast::Expr::WhileExpr {
+            token: ctok,
+            cond: cond_expr,
+            stmts: loop_block,
+        })
+    }
+
+    fn parse_func_expr(&mut self) -> Rc<ast::Expr> {
+        let ct = self.curtok.clone();
+        self.next_token();
+
+        if self.is_curtok(&TokenType::Func) {
+            self.next_token();
+        }
+        let p = self.parse_func_params();
+        let bs = self.parse_block_stms(&TokenType::End);
+
+        Rc::new(ast::Expr::FuncExpr {
+            token: ct,
+            params: p,
+            body: bs,
+        })
+    }
+
+    fn parse_func_params(&mut self) -> Rc<Vec<ast::Identifier>> {
+        let mut params: Vec<ast::Identifier> = Vec::new();
+        if self.is_curtok(&TokenType::Lparen) {
+            self.next_token();
+        }
+        if self.is_curtok(&TokenType::Rparen) {
+            self.next_token();
+            return Rc::new(params);
+        }
+
+        params.push(self.parse_as_identifier());
+
+        while self.is_peektok(&TokenType::Comma) {
+            self.next_token();
+            self.next_token();
+            params.push(self.parse_as_identifier())
+        }
+
+        //println!("{:?}" , self.curtok);
+        if self.is_peektok(&TokenType::Rparen) {
+            self.next_token();
+            self.next_token();
+        }
+
+        Rc::new(params)
     }
 
     fn parse_call_expr(&mut self, func: Rc<ast::Expr>) -> Rc<ast::Expr> {
@@ -468,13 +529,11 @@ impl<'lx> Parser<'lx> {
             self.next_token();
         }
         let expr = self.parse_expr(P_LOWEST);
-        //println!("{:?}" , expr);
 
         if self.is_peektok(&TokenType::Rparen) {
             self.next_token();
         }
 
-        //Rc::new(ast::Expr::NullExpr)
         Rc::new(ast::Expr::IncludeExpr {
             token: curtok,
             filename: expr,
@@ -492,11 +551,28 @@ impl<'lx> Parser<'lx> {
         })
     }
 
+    //
+    //
+    // Primitives
+    //
+    //
+
     fn parse_identifier(&mut self) -> Rc<ast::Expr> {
         Rc::new(ast::Expr::IdentExpr {
             token: self.curtok.clone(),
             value: self.curtok.literal.clone(),
         })
+    }
+
+    fn parse_as_identifier(&mut self) -> ast::Identifier {
+        //      let ctok = self.curtok.clone();
+        //        let is_mod = ctok.literal.contains('.');
+
+        Identifier {
+            token: self.curtok.clone(),
+            name: self.curtok.literal.clone(),
+            is_mod: self.curtok.literal.contains('.'),
+        }
     }
 
     fn parse_string_lit(&mut self) -> Rc<ast::Expr> {
@@ -523,9 +599,9 @@ impl<'lx> Parser<'lx> {
     fn parse_number(&mut self) -> Rc<ast::Expr> {
         let curtok = self.curtok.clone();
         let curtok_lit = self.curtok.literal.clone();
-        let nl: Vec<&str> = curtok_lit.split('.').collect();
+        //        let nl: Vec<&str> = curtok_lit.split('.').collect();
 
-        if nl.len() == 1 {
+        if curtok_lit.split('.').count() == 1 {
             let v = curtok_lit.parse::<i64>().unwrap();
             Rc::new(ast::Expr::NumExpr {
                 token: curtok,
