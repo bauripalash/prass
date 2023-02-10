@@ -1,9 +1,22 @@
+use std::hash::Hash;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub ttype: TokenType,
     pub literal: String,
     pub colno: usize,
     pub lineno: usize,
+}
+
+impl Default for Token {
+    fn default() -> Self {
+        Self {
+            ttype: TokenType::Eof,
+            literal: "".to_string(),
+            colno: 0,
+            lineno: 0,
+        }
+    }
 }
 
 impl Token {
@@ -30,6 +43,17 @@ impl Token {
 pub enum NumberToken {
     Float(f64),
     Int(i64),
+}
+
+impl Eq for NumberToken {}
+
+impl Hash for NumberToken {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Int(i) => i.hash(state),
+            Self::Float(f) => format!("{}", f).hash(state),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

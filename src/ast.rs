@@ -2,6 +2,7 @@ use std::{fmt::Display, rc::Rc};
 
 use crate::token::{NumberToken, Token};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
     Program(Program),
     Stmt(Stmt),
@@ -9,7 +10,11 @@ pub enum Node {
     Identifier(Identifier),
 }
 
-#[derive(Debug)]
+pub trait AstNode {
+    
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program {
     pub stmts: Vec<Rc<Stmt>>,
 }
@@ -117,7 +122,10 @@ pub enum Expr {
     NullExpr,
     ErrExpr,
 }
-
+impl AstNode for Expr {
+    
+}
+impl Eq for Expr {}
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let result: String = match self {
@@ -255,6 +263,9 @@ pub enum Stmt {
         expr: Rc<Expr>,
     },
 }
+
+impl AstNode for Stmt {}
+impl Eq for Stmt {}
 
 impl Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
