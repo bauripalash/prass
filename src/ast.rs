@@ -167,13 +167,10 @@ impl Display for Expr {
                 cond,
                 trueblock,
                 elseblock,
-            } => {
-                if let Some(eb) = elseblock {
-                    format!("if({cond}:{trueblock}:{eb})")
-                } else {
-                    format!("if({cond}:{trueblock})")
-                }
-            }
+            } => elseblock.as_ref().map_or_else(
+                || format!("if({cond}:{trueblock})"),
+                |eb| format!("if({cond}:{trueblock}:{eb})"),
+            ),
 
             Self::WhileExpr {
                 token: _,

@@ -21,7 +21,7 @@ pub const FUNC_OBJ: &str = "break";
 pub const INCLUDE_OBJ: &str = "include";
 pub const SHOW_OBJ: &str = "show";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Object {
     Number {
         token: Option<Rc<Token>>,
@@ -73,16 +73,16 @@ pub enum Object {
 }
 
 impl Object {
-    pub fn hashable(&self) -> bool {
-        match self {
-            Object::Number { token: _, value: _ }
-            | Object::Bool { token: _, value: _ }
-            | Object::String { token: _, value: _ } => true,
-            _ => false,
-        }
+    pub const fn hashable(&self) -> bool {
+        matches!(
+            self,
+            Self::Number { token: _, value: _ }
+                | Self::Bool { token: _, value: _ }
+                | Self::String { token: _, value: _ }
+        )
     }
 
-    pub fn get_type(&self) -> &str {
+    pub const fn get_type(&self) -> &str {
         match self {
             Self::Hash { .. } => HASH_OBJ,
             Self::Null => NULL_OBJ,
@@ -105,10 +105,18 @@ impl Object {
 impl Hash for Object {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
-            Object::String { token: _, value } => value.hash(state),
-            Object::Bool { token: _, value } => value.hash(state),
+            Self::String { token: _, value } => value.hash(state),
+            Self::Bool { token: _, value } => value.hash(state),
             Self::Number { token: _, value } => value.hash(state),
             _ => panic!("not hashable"),
         }
     }
 }
+
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl Eq for Object {}

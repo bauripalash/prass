@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    ast::{self, Stmt},
+    ast,
     obj::Object,
     token::{Token, TokenType},
 };
@@ -16,8 +16,14 @@ pub struct Compiler {
     constants: Vec<Object>,
 }
 
+impl Default for Compiler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Compiler {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             instructions: code::Instructions::new(),
             constants: Vec::new(),
@@ -35,12 +41,9 @@ impl Compiler {
     pub fn compile_stmt(&mut self, stmt: &ast::Stmt) {
         //println!("{stmt}");
 
-        match stmt {
-            ast::Stmt::ExprStmt { token: _, expr } => {
-                self.compiler_expr(expr);
-                self.emit(Opcode::OpPop, None);
-            }
-            _ => {}
+        if let ast::Stmt::ExprStmt { token: _, expr } = stmt {
+            self.compiler_expr(expr);
+            self.emit(Opcode::OpPop, None);
         }
     }
 
@@ -55,9 +58,16 @@ impl Compiler {
                     token: Some(Rc::new(token.clone())),
                     value: value.clone(),
                 };
-                let con = self.add_const(num.clone());
+                let con = self.add_const(num);
                 //println!("{con}");
                 self.emit(Opcode::OpConst, Some(&vec![con]));
+            }
+            ast::Expr::BoolExpr { token: _, value } => {
+                if *value {
+                    self.emit(Opcode::OpTrue, None);
+                } else {
+                    self.emit(Opcode::OpFalse, None);
+                }
             }
             ast::Expr::InfixExpr {
                 token: _,
@@ -65,19 +75,38 @@ impl Compiler {
                 op,
                 right,
             } => self.compile_infix_expr(left, right, op),
+            ast::Expr::PrefixExpr {
+                token: _,
+                op,
+                right,
+            } => self.compiler_prefix_expr(right, op),
+
             _ => {}
         }
     }
 
+    pub fn compiler_prefix_expr(&mut self, right: &ast::Expr, op: &Token) {
+        self.compiler_expr(right);
+
+        match op.ttype {
+            TokenType::BANG => self.emit(Opcode::OpBang, None),
+            TokenType::Minus => self.emit(Opcode::OpMinus, None),
+            _ => panic!("prefix unknonw operator -> {} ", op.literal),
+        };
+    }
+
     pub fn compile_infix_expr(&mut self, left: &ast::Expr, right: &ast::Expr, op: &Token) {
-        self.compiler_expr(&left);
-        self.compiler_expr(&right);
+        self.compiler_expr(left);
+        self.compiler_expr(right);
         match op.ttype {
             TokenType::Plus => self.emit(Opcode::OpAdd, None),
             TokenType::Minus => self.emit(Opcode::OpSub, None),
             TokenType::Mul => self.emit(Opcode::OpMul, None),
             TokenType::Div => self.emit(Opcode::OpDiv, None),
             TokenType::MOD => self.emit(Opcode::OpMod, None),
+            TokenType::GT => self.emit(Opcode::OpGT, None),
+            TokenType::EqEq => self.emit(Opcode::OpEqual, None),
+            TokenType::NotEq => self.emit(Opcode::OpNotEqual, None),
             _ => panic!("unknown operator -> {}", op.literal),
         };
     }
@@ -87,10 +116,10 @@ impl Compiler {
         if let Some(o) = operands {
             ins = make_ins(op, o);
         } else {
-            ins = make_ins(op, &vec![]);
+            ins = make_ins(op, &[]);
         }
 
-        return self.add_inst(Instructions { ins });
+        self.add_inst(Instructions { ins })
     }
 
     fn add_const(&mut self, obj: Object) -> usize {

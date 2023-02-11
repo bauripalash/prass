@@ -12,15 +12,15 @@ pub struct Env {
 
 impl PartialEq for Env {
     fn eq(&self, other: &Self) -> bool {
-        let k: Vec<String> = self.env.keys().map(|k| k.clone()).collect();
-        let ko: Vec<String> = other.env.keys().map(|k| k.clone()).collect();
+        let k: Vec<String> = self.env.keys().cloned().collect();
+        let ko: Vec<String> = other.env.keys().cloned().collect();
 
         if k != ko {
             return false;
         }
 
-        let v: Vec<Object> = self.env.values().map(|v| v.clone()).collect();
-        let vo: Vec<Object> = other.env.values().map(|v| v.clone()).collect();
+        let v: Vec<Object> = self.env.values().cloned().collect();
+        let vo: Vec<Object> = other.env.values().cloned().collect();
 
         if v != vo {
             return false;
@@ -31,7 +31,11 @@ impl PartialEq for Env {
 }
 
 impl Eq for Env {}
-
+impl Default for Env {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Env {
     pub fn new() -> Self {
         Self {
@@ -53,13 +57,19 @@ impl Env {
             }
         }
 
-        return v;
+        v
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Envmap {
     envs: HashMap<String, Env>,
+}
+
+impl Default for Envmap {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Envmap {
@@ -108,7 +118,7 @@ impl Envmap {
             return x.set_val(key, value);
         }
 
-        return None;
+        None
     }
 
     pub fn set_to(&mut self, env: String, key: String, value: Object) -> Option<Object> {
@@ -116,6 +126,6 @@ impl Envmap {
             return x.set_val(key, value);
         }
 
-        return None;
+        None
     }
 }

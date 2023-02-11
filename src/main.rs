@@ -1,12 +1,12 @@
 use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
 
 fn main() {
-    let a = Lexer::new("11%3");
+    let a = Lexer::new("jodi (true) tahole 1 nahole 2 sesh");
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
 
     if parser.errors.is_empty() {
-        println!("parse_done!");
+        println!("{parsed_program}");
     } else {
         for err in &parser.errors {
             println!("Err => {}", err.msg);
@@ -18,6 +18,6 @@ fn main() {
     //println!("{c:?}");
     let mut v = Vm::new(c);
     v.run();
-    println!("{}", v.instructions.to_string());
+    println!("{}", v.instructions);
     println!("result->{:?}", v.last_pop());
 }

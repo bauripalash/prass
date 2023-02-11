@@ -1,12 +1,28 @@
 use crate::{
     compiler::code::{self, Bytecode, Instructions},
     obj::{Object, NUMBER_OBJ},
-    token::{NumberToken, Token, TokenType},
+    token::NumberToken,
 };
 
 const STACK_SIZE: usize = 2048;
+const TRUE: Object = Object::Bool {
+    token: None,
+    value: true,
+};
+const FALSE: Object = Object::Bool {
+    token: None,
+    value: false,
+};
 
-#[derive(Debug, Clone, PartialEq)]
+const fn bool_native_to_obj(b: bool) -> Object {
+    if b {
+        TRUE
+    } else {
+        FALSE
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vm {
     constants: Vec<Object>,
     pub instructions: code::Instructions,
@@ -26,9 +42,9 @@ impl Vm {
 
     pub fn top_stack(&self) -> &Object {
         if self.sp == 0 {
-            return &Object::Null;
+            &Object::Null
         } else {
-            return &self.stack[self.sp - 1];
+            &self.stack[self.sp - 1]
         }
     }
 
@@ -43,7 +59,7 @@ impl Vm {
                     let op_ins = &self.instructions.ins;
                     let con_index = Instructions::read_uint16(op_ins.to_vec(), ip + 1) as usize;
                     let con_obj = &self.constants[con_index].clone();
-                    self.push(&con_obj);
+                    self.push(con_obj);
 
                     //println!("{con_index:?}");
                     ip += 2;
@@ -57,9 +73,89 @@ impl Vm {
                 | code::Opcode::OpDiv
                 | code::Opcode::OpMod => self.exe_binary_op(op),
 
+                code::Opcode::OpTrue => self.push(&TRUE),
+                code::Opcode::OpFalse => self.push(&FALSE),
+                code::Opcode::OpEqual | code::Opcode::OpNotEqual | code::Opcode::OpGT => {
+                    self.exe_comparison(op)
+                }
+                code::Opcode::OpBang => self.exe_bang_op(),
+                code::Opcode::OpMinus => self.exe_pref_minux(),
+
                 _ => {}
             }
             ip += 1;
+        }
+    }
+
+    fn exe_pref_minux(&mut self) {
+        let op = self.pop();
+
+        if op.get_type() != NUMBER_OBJ {
+            panic!("negetion can only be applied on numbers -> {op:?}")
+        }
+
+        let val: Option<NumberToken> = match op {
+            Object::Number { token: _, value } => Some(value),
+            _ => None,
+        };
+
+        self.push(&Object::Number {
+            token: None,
+            value: val.unwrap().make_neg(),
+        })
+    }
+
+    fn exe_bang_op(&mut self) {
+        let o = self.pop();
+
+        match o {
+            Object::Bool { token: _, value } => {
+                if value {
+                    self.push(&FALSE)
+                } else {
+                    self.push(&TRUE)
+                }
+            }
+            _ => self.push(&FALSE),
+        };
+    }
+
+    fn exe_comparison(&mut self, op: code::Opcode) {
+        let right = self.pop();
+        let left = self.pop();
+        if left.get_type() == NUMBER_OBJ && right.get_type() == NUMBER_OBJ {
+            self.exe_comparison_number(op, left, right);
+            return;
+        }
+
+        match op {
+            code::Opcode::OpEqual => self.push(&bool_native_to_obj(right == left)),
+            code::Opcode::OpNotEqual => self.push(&bool_native_to_obj(left != right)),
+            _ => {
+                panic!("unknonwn operator -> {op:?}")
+            }
+        }
+    }
+
+    fn exe_comparison_number(&mut self, op: code::Opcode, left: Object, right: Object) {
+        let lval: Option<NumberToken> = if let Object::Number { token: _, value } = left {
+            Some(value)
+        } else {
+            None
+        };
+
+        let rval: Option<NumberToken> = if let Object::Number { token: _, value } = right {
+            Some(value)
+        } else {
+            None
+        };
+
+        match op {
+            code::Opcode::OpEqual => self.push(&bool_native_to_obj(lval == rval)),
+            code::Opcode::OpGT => self.push(&bool_native_to_obj(lval > rval)),
+            code::Opcode::OpNotEqual => self.push(&bool_native_to_obj(lval != rval)),
+
+            _ => panic!("unknown comparison"),
         }
     }
 

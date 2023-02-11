@@ -104,7 +104,7 @@ pub fn get_def(op: &Opcode) -> OpDef {
     }
 }
 
-pub fn make_ins(op: Opcode, ops: &Vec<usize>) -> Vec<u8> {
+pub fn make_ins(op: Opcode, ops: &[usize]) -> Vec<u8> {
     let mut ins: Vec<u8> = Vec::new();
     ins.push(op as u8);
     let def = get_def(&op).op_width;
@@ -154,7 +154,7 @@ impl Display for Instructions {
             let def = get_def(&opcode);
 
             let (ops, sz) = read_operands(&def, self.ins[i + 1..].to_vec());
-            res.push_str(&format!("{:04} {}\n", i, Instructions::fmt_ins(&def, &ops)));
+            res.push_str(&format!("{:04} {}\n", i, Self::fmt_ins(&def, &ops)));
             i += 1 + sz;
         }
 
@@ -163,11 +163,16 @@ impl Display for Instructions {
 }
 
 pub fn u8_to_op(o: u8) -> Opcode {
-    return unsafe { ::std::mem::transmute(o) };
+    unsafe { ::std::mem::transmute(o) }
 }
 
+impl Default for Instructions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Instructions {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { ins: Vec::new() }
     }
     pub fn fmt_ins(def: &OpDef, ops: &Vec<usize>) -> String {
@@ -179,10 +184,10 @@ impl Instructions {
             );
         }
         match def.op_width.len() {
-            0 => format!("{}", def.name),
+            0 => def.name.to_string(),
             1 => format!("{} {}", def.name, ops[0]),
             2 => format!("{} {} {}", def.name, ops[0], ops[1]),
-            _ => format!("ERR=> unsupported operand width"),
+            _ => "ERR=> unsupported operand width".to_string(),
         }
     }
 
