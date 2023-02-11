@@ -57,6 +57,12 @@ impl Hash for NumberToken {
 }
 
 impl NumberToken {
+    pub fn get_type(&self) -> bool {
+        match self {
+            Self::Float(..) => true,
+            Self::Int(..) => false,
+        }
+    }
     pub fn get_as_f64(&self) -> f64 {
         match self {
             Self::Float(f) => *f,

@@ -1,6 +1,6 @@
 use crate::{
     compiler::code::{self, Bytecode, Instructions},
-    obj::Object,
+    obj::{Object, NUMBER_OBJ},
     token::{NumberToken, Token, TokenType},
 };
 
@@ -51,32 +51,62 @@ impl Vm {
                 code::Opcode::OpPop => {
                     self.pop();
                 }
-                code::Opcode::OpAdd => {
-                    let right = self.pop();
-                    let left = self.pop();
-                    let lval = match left {
-                        Object::Number { token: _, value } => value.get_as_i64(),
-
-                        _ => 0_i64,
-                    };
-
-                    let rval = match right {
-                        Object::Number { token: _, value } => value.get_as_i64(),
-
-                        _ => 0_i64,
-                    };
-
-                    let result = lval + rval;
-
-                    self.push(&Object::Number {
-                        token: None,
-                        value: NumberToken::from(result),
-                    })
-                }
+                code::Opcode::OpAdd
+                | code::Opcode::OpSub
+                | code::Opcode::OpMul
+                | code::Opcode::OpDiv => self.exe_binary_op(op),
 
                 _ => {}
             }
             ip += 1;
+        }
+    }
+
+    fn exe_binary_op(&mut self, op: code::Opcode) {
+        let right = self.pop();
+        let left = self.pop();
+        if right.get_type() == NUMBER_OBJ && left.get_type() == NUMBER_OBJ {
+            self.exe_binary_op_number(op, left, right)
+        }
+    }
+
+    fn exe_binary_op_number(&mut self, op: code::Opcode, left: Object, right: Object) {
+        let mut is_float = false;
+        let lval: Option<NumberToken> = if let Object::Number { token: _, value } = left {
+            is_float = value.get_type();
+            Some(value)
+        } else {
+            None
+        };
+        let rval: Option<NumberToken> = if let Object::Number { token: _, value } = right {
+            is_float = value.get_type();
+            Some(value)
+        } else {
+            None
+        };
+
+        if is_float {
+            let lfv = lval.unwrap().get_as_f64();
+            let rfv = rval.unwrap().get_as_f64();
+            let value = NumberToken::from(match op {
+                code::Opcode::OpAdd => lfv + rfv,
+                code::Opcode::OpSub => lfv - rfv,
+                code::Opcode::OpMul => lfv * rfv,
+                code::Opcode::OpDiv => lfv / rfv,
+                _ => 0.0,
+            });
+            self.push(&Object::Number { token: None, value });
+        } else {
+            let lfv = lval.unwrap().get_as_i64();
+            let rfv = rval.unwrap().get_as_i64();
+            let value = NumberToken::from(match op {
+                code::Opcode::OpAdd => lfv + rfv,
+                code::Opcode::OpSub => lfv - rfv,
+                code::Opcode::OpMul => lfv * rfv,
+                code::Opcode::OpDiv => lfv / rfv,
+                _ => 0,
+            });
+            self.push(&Object::Number { token: None, value });
         }
     }
 
@@ -90,7 +120,8 @@ impl Vm {
     }
 
     fn pop(&mut self) -> Object {
-        let obj = &self.stack[self.sp - 1];
+        let ip = self.sp - 1;
+        let obj = &self.stack[ip];
         self.sp -= 1;
         obj.clone()
     }

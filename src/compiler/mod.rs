@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     ast::{self, Stmt},
     obj::Object,
-    token::TokenType,
+    token::{Token, TokenType},
 };
 
 use self::code::{make_ins, Bytecode, Instructions, Opcode};
@@ -64,24 +64,21 @@ impl Compiler {
                 left,
                 op,
                 right,
-            } => {
-                //println!("{expr:?} -> ");
-                self.compiler_expr(&left);
-                self.compiler_expr(&right);
-
-                match op.ttype {
-                    TokenType::Plus => {
-                        //println!("op +");
-                        self.emit(Opcode::OpAdd, None);
-                    }
-
-                    _ => {
-                        panic!("unknown operator {}", op.literal);
-                    }
-                }
-            }
+            } => self.compile_infix_expr(left, right, op),
             _ => {}
         }
+    }
+
+    pub fn compile_infix_expr(&mut self, left: &ast::Expr, right: &ast::Expr, op: &Token) {
+        self.compiler_expr(&left);
+        self.compiler_expr(&right);
+        match op.ttype {
+            TokenType::Plus => self.emit(Opcode::OpAdd, None),
+            TokenType::Minus => self.emit(Opcode::OpSub, None),
+            TokenType::Mul => self.emit(Opcode::OpMul, None),
+            TokenType::Div => self.emit(Opcode::OpDiv, None),
+            _ => panic!("unknown operator -> {}", op.literal),
+        };
     }
 
     pub fn emit(&mut self, op: Opcode, operands: Option<&Vec<usize>>) -> usize {

@@ -1,7 +1,7 @@
 use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
 
 fn main() {
-    let a = Lexer::new("100+200");
+    let a = Lexer::new("1+2*3/4.0");
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
 
