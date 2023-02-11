@@ -10,9 +10,7 @@ pub enum Node {
     Identifier(Identifier),
 }
 
-pub trait AstNode {
-    
-}
+pub trait AstNode {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program {
@@ -122,9 +120,7 @@ pub enum Expr {
     NullExpr,
     ErrExpr,
 }
-impl AstNode for Expr {
-    
-}
+impl AstNode for Expr {}
 impl Eq for Expr {}
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

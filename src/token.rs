@@ -56,6 +56,40 @@ impl Hash for NumberToken {
     }
 }
 
+impl NumberToken {
+    pub fn get_as_f64(&self) -> f64 {
+        match self {
+            Self::Float(f) => *f,
+            Self::Int(i) => *i as f64,
+        }
+    }
+
+    pub fn get_as_i64(&self) -> i64 {
+        match self {
+            Self::Float(f) => f.round() as i64,
+            Self::Int(i) => *i,
+        }
+    }
+}
+
+impl From<f64> for NumberToken {
+    fn from(value: f64) -> Self {
+        NumberToken::Float(value)
+    }
+}
+
+impl From<i64> for NumberToken {
+    fn from(value: i64) -> Self {
+        NumberToken::Int(value)
+    }
+}
+
+impl From<usize> for NumberToken {
+    fn from(value: usize) -> Self {
+        NumberToken::Int(value as i64)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TokenType {
     //Illegal; Unknown symbol

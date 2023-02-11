@@ -1,6 +1,7 @@
 use std::fmt::Display;
+use std::io::Cursor;
 
-use byteorder::{self, WriteBytesExt};
+use byteorder::{self, ReadBytesExt, WriteBytesExt};
 use byteorder::{BigEndian, ByteOrder};
 
 use crate::obj::Object;
@@ -46,10 +47,10 @@ pub struct OpDef {
     op_width: Vec<i64>,
 }
 
-#[derive(Debug , Clone)]
-pub struct Bytecode{
-    pub instructions : Instructions ,
-    pub constants : Vec<Object>
+#[derive(Debug, Clone)]
+pub struct Bytecode {
+    pub instructions: Instructions,
+    pub constants: Vec<Object>,
 }
 
 impl OpDef {
@@ -61,11 +62,10 @@ impl OpDef {
     }
 }
 
-#[derive(Debug , Clone , PartialEq , Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Instructions {
     pub ins: Vec<u8>,
 }
-
 
 pub fn get_def(op: &Opcode) -> OpDef {
     match op {
@@ -102,7 +102,7 @@ pub fn get_def(op: &Opcode) -> OpDef {
     }
 }
 
-pub fn make_ins(op: Opcode, ops: &Vec<usize>) -> Vec<u8>  {
+pub fn make_ins(op: Opcode, ops: &Vec<usize>) -> Vec<u8> {
     let mut ins: Vec<u8> = Vec::new();
     ins.push(op as u8);
     let def = get_def(&op).op_width;
@@ -139,7 +139,7 @@ pub fn read_operands(def: &OpDef, ins: Vec<u8>) -> (Vec<usize>, usize) {
     (ops, offset)
 }
 
-impl Display for Instructions  {
+impl Display for Instructions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut res = String::new();
 
@@ -164,7 +164,7 @@ pub fn u8_to_op(o: u8) -> Opcode {
     return unsafe { ::std::mem::transmute(o) };
 }
 
-impl Instructions  {
+impl Instructions {
     pub fn new() -> Self {
         Self { ins: Vec::new() }
     }
@@ -184,7 +184,17 @@ impl Instructions  {
         }
     }
 
-    pub fn add_ins(&mut self , i : Vec<u8>){
+    pub fn add_ins(&mut self, i: Vec<u8>) {
         self.ins.extend_from_slice(&i)
+    }
+
+    pub fn read_uint16(insts: Vec<u8>, start: usize) -> u16 {
+        let mut tc = Cursor::new(insts[start..].to_vec());
+
+        if let Ok(v) = tc.read_u16::<BigEndian>() {
+            return v;
+        }
+
+        0
     }
 }
