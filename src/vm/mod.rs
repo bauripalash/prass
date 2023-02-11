@@ -54,7 +54,8 @@ impl Vm {
                 code::Opcode::OpAdd
                 | code::Opcode::OpSub
                 | code::Opcode::OpMul
-                | code::Opcode::OpDiv => self.exe_binary_op(op),
+                | code::Opcode::OpDiv
+                | code::Opcode::OpMod => self.exe_binary_op(op),
 
                 _ => {}
             }
@@ -93,6 +94,7 @@ impl Vm {
                 code::Opcode::OpSub => lfv - rfv,
                 code::Opcode::OpMul => lfv * rfv,
                 code::Opcode::OpDiv => lfv / rfv,
+                code::Opcode::OpMod => lfv % rfv,
                 _ => 0.0,
             });
             self.push(&Object::Number { token: None, value });
@@ -104,6 +106,7 @@ impl Vm {
                 code::Opcode::OpSub => lfv - rfv,
                 code::Opcode::OpMul => lfv * rfv,
                 code::Opcode::OpDiv => lfv / rfv,
+                code::Opcode::OpMod => lfv % rfv,
                 _ => 0,
             });
             self.push(&Object::Number { token: None, value });

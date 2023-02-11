@@ -77,6 +77,7 @@ impl Compiler {
             TokenType::Minus => self.emit(Opcode::OpSub, None),
             TokenType::Mul => self.emit(Opcode::OpMul, None),
             TokenType::Div => self.emit(Opcode::OpDiv, None),
+            TokenType::MOD => self.emit(Opcode::OpMod, None),
             _ => panic!("unknown operator -> {}", op.literal),
         };
     }
