@@ -48,6 +48,9 @@ impl Vm {
                     //println!("{con_index:?}");
                     ip += 2;
                 }
+                code::Opcode::OpPop => {
+                    self.pop();
+                }
                 code::Opcode::OpAdd => {
                     let right = self.pop();
                     let left = self.pop();
@@ -66,7 +69,7 @@ impl Vm {
                     let result = lval + rval;
 
                     self.push(&Object::Number {
-                        token: Token::dummy().into(),
+                        token: None,
                         value: NumberToken::from(result),
                     })
                 }
@@ -90,5 +93,9 @@ impl Vm {
         let obj = &self.stack[self.sp - 1];
         self.sp -= 1;
         obj.clone()
+    }
+
+    pub fn last_pop(&self) -> Object {
+        self.stack[self.sp].clone()
     }
 }

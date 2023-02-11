@@ -36,7 +36,10 @@ impl Compiler {
         //println!("{stmt}");
 
         match stmt {
-            ast::Stmt::ExprStmt { token: _, expr } => self.compiler_expr(expr),
+            ast::Stmt::ExprStmt { token: _, expr } => {
+                self.compiler_expr(expr);
+                self.emit(Opcode::OpPop, None);
+            }
             _ => {}
         }
     }
@@ -49,7 +52,7 @@ impl Compiler {
                 is_int: _,
             } => {
                 let num = Object::Number {
-                    token: Rc::new(token.clone()),
+                    token: Some(Rc::new(token.clone())),
                     value: value.clone(),
                 };
                 let con = self.add_const(num.clone());

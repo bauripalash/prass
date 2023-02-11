@@ -11,50 +11,50 @@ use self::env::Env;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Object {
     Number {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         value: token::NumberToken,
     },
     Bool {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         value: bool,
     },
     String {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         value: String,
     },
     Array {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         value: Vec<Rc<Object>>,
     },
     Null,
     ReturnValue {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         value: Rc<Object>,
     },
     Error {
-        token: Option<Rc<Token>>,
+        token: Option<Option<Rc<Token>>>,
         value: String,
     },
     Break {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         value: Rc<Object>,
     },
     Function {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         params: Vec<ast::Identifier>,
         body: Rc<ast::Stmt>,
         env: Env,
     },
     Include {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         filename: String,
     },
     Show {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         value: Vec<String>,
     },
     Hash {
-        token: Rc<Token>,
+        token: Option<Rc<Token>>,
         pairs: Vec<(Rc<Object>, Rc<Object>)>,
     },
 }
