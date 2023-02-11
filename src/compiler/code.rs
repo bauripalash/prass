@@ -45,7 +45,7 @@ pub enum Opcode {
 #[allow(dead_code)]
 pub struct OpDef {
     pub name: String,
-    op_width: Vec<i64>,
+    pub op_width: Vec<i64>,
 }
 
 #[derive(Debug, Clone)]

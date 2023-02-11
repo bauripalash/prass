@@ -6,14 +6,37 @@ use crate::{
     token::{Token, TokenType},
 };
 
-use self::code::{make_ins, Bytecode, Instructions, Opcode};
+use self::code::{get_def, make_ins, u8_to_op, Bytecode, Instructions, Opcode};
 
 pub mod code;
+
+#[derive(Debug, Clone)]
+pub struct EmittedIns {
+    pub opcode: code::Opcode,
+    pub pos: usize,
+}
+
+impl EmittedIns {
+    pub const fn new() -> Self {
+        EmittedIns {
+            opcode: code::Opcode::OpDummy,
+            pos: 0,
+        }
+    }
+}
+
+impl Default for EmittedIns {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Compiler {
     instructions: code::Instructions,
     constants: Vec<Object>,
+    last_ins: EmittedIns,
+    prev_ins: EmittedIns,
 }
 
 impl Default for Compiler {
@@ -27,6 +50,8 @@ impl Compiler {
         Self {
             instructions: code::Instructions::new(),
             constants: Vec::new(),
+            last_ins: EmittedIns::new(),
+            prev_ins: EmittedIns::new(),
         }
     }
 
@@ -41,9 +66,18 @@ impl Compiler {
     pub fn compile_stmt(&mut self, stmt: &ast::Stmt) {
         //println!("{stmt}");
 
-        if let ast::Stmt::ExprStmt { token: _, expr } = stmt {
-            self.compiler_expr(expr);
-            self.emit(Opcode::OpPop, None);
+        match stmt {
+            ast::Stmt::ExprStmt { token: _, expr } => {
+                self.compiler_expr(expr);
+                self.emit(Opcode::OpPop, None);
+            }
+            ast::Stmt::BlockStmt { token: _, stmts } => {
+                for s in stmts {
+                    self.compile_stmt(s)
+                }
+            }
+
+            _ => {}
         }
     }
 
@@ -80,6 +114,38 @@ impl Compiler {
                 op,
                 right,
             } => self.compiler_prefix_expr(right, op),
+            ast::Expr::IfExpr {
+                token: _,
+                cond,
+                trueblock,
+                elseblock,
+            } => {
+                self.compiler_expr(&cond);
+
+                let jntpos = self.emit(Opcode::OpJumpNotTruthy, Some(&vec![9999]));
+                self.compile_stmt(&trueblock);
+
+                if self.is_last_ins(&Opcode::OpPop) {
+                    self.remove_last_pop();
+                }
+
+                if let Some(eb) = elseblock {
+                    let jmppos = self.emit(Opcode::OpJump, Some(&vec![9999]));
+
+                    let after_tb_pos = self.instructions.ins.len();
+                    self.change_operand(jntpos, after_tb_pos);
+
+                    self.compile_stmt(eb);
+                    if self.is_last_ins(&Opcode::OpPop) {
+                        self.remove_last_pop();
+                    }
+                    let after_eb_pos = self.instructions.ins.len();
+                    self.change_operand(jmppos, after_eb_pos)
+                } else {
+                    let after_tb_pos = self.instructions.ins.len();
+                    self.change_operand(jntpos, after_tb_pos);
+                }
+            }
 
             _ => {}
         }
@@ -93,6 +159,20 @@ impl Compiler {
             TokenType::Minus => self.emit(Opcode::OpMinus, None),
             _ => panic!("prefix unknonw operator -> {} ", op.literal),
         };
+    }
+
+    pub fn replace_ins(&mut self, pos: usize, new_ins: Vec<u8>) {
+        let mut i = 0;
+        while i < new_ins.len() {
+            self.instructions.ins[pos + i] = new_ins[i];
+            i += 1;
+        }
+    }
+
+    pub fn change_operand(&mut self, pos: usize, operand: usize) {
+        let op = u8_to_op(self.instructions.ins[pos]);
+        let ins = make_ins(op, &[operand]);
+        self.replace_ins(pos, ins);
     }
 
     pub fn compile_infix_expr(&mut self, left: &ast::Expr, right: &ast::Expr, op: &Token) {
@@ -112,14 +192,46 @@ impl Compiler {
     }
 
     pub fn emit(&mut self, op: Opcode, operands: Option<&Vec<usize>>) -> usize {
+        let d = get_def(&op).op_width.len();
         let ins: Vec<u8>;
+
         if let Some(o) = operands {
+            if d != o.len() {
+                panic!(
+                    "OpCode {op:?} operand does not match. W=>{d} G=>{}",
+                    o.len()
+                )
+            }
             ins = make_ins(op, o);
         } else {
+            if d > 0 {
+                panic!("OpCode {op:?} operand does not match. W=>{d} G=>0")
+            }
+
             ins = make_ins(op, &[]);
         }
 
-        self.add_inst(Instructions { ins })
+        let pos = self.add_inst(Instructions { ins });
+
+        self.set_last_ins(op, pos);
+
+        pos
+    }
+
+    fn set_last_ins(&mut self, op: Opcode, pos: usize) {
+        let prev = self.last_ins.clone();
+        let last = EmittedIns { opcode: op, pos };
+        self.prev_ins = prev;
+        self.last_ins = last;
+    }
+
+    fn is_last_ins(&self, op: &Opcode) -> bool {
+        self.last_ins.opcode == *op
+    }
+
+    fn remove_last_pop(&mut self) {
+        self.instructions.ins = self.instructions.ins[..self.last_ins.pos].to_vec();
+        self.last_ins = self.prev_ins.clone();
     }
 
     fn add_const(&mut self, obj: Object) -> usize {

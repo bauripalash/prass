@@ -1,7 +1,7 @@
 use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
 
 fn main() {
-    let a = Lexer::new("jodi (true) tahole 1 nahole 2 sesh");
+    let a = Lexer::new("jodi (true) tahole 1 nahole 2 sesh; 3333");
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
 
@@ -15,9 +15,9 @@ fn main() {
 
     let mut cm = Compiler::new();
     let c = cm.compile(parsed_program);
-    //println!("{c:?}");
+    println!("{}", c.instructions);
     let mut v = Vm::new(c);
     v.run();
-    println!("{}", v.instructions);
-    println!("result->{:?}", v.last_pop());
+    //println!("{}", v.instructions);
+    //println!("result->{:?}", v.last_pop());
 }
