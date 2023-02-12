@@ -1,7 +1,7 @@
 use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
 
 fn main() {
-    let src = "[1,2,3]";
+    let src = "-1";
     let a = Lexer::new(src);
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();

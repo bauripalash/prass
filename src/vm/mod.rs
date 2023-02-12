@@ -169,14 +169,13 @@ impl Vm {
             panic!("negetion can only be applied on numbers -> {op:?}")
         }
 
-        let val: Option<NumberToken> = match op {
-            Object::Number { token: _, value } => Some(value),
-            _ => None,
+        let Object::Number { token : _, value } = op else {
+            panic!("not a number")
         };
 
         self.push(&Object::Number {
             token: None,
-            value: val.unwrap().make_neg(),
+            value: value.make_neg(),
         })
     }
 
