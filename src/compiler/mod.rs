@@ -9,6 +9,7 @@ use crate::{
 use self::code::{get_def, make_ins, u8_to_op, Bytecode, Instructions, Opcode};
 
 pub mod code;
+pub mod symtab;
 
 #[derive(Debug, Clone)]
 pub struct EmittedIns {
@@ -18,7 +19,7 @@ pub struct EmittedIns {
 
 impl EmittedIns {
     pub const fn new() -> Self {
-        EmittedIns {
+        Self {
             opcode: code::Opcode::OpDummy,
             pos: 0,
         }
@@ -33,6 +34,7 @@ impl Default for EmittedIns {
 
 #[derive(Debug, Clone)]
 pub struct Compiler {
+    symtab: symtab::Table,
     instructions: code::Instructions,
     constants: Vec<Object>,
     last_ins: EmittedIns,
@@ -46,8 +48,9 @@ impl Default for Compiler {
 }
 
 impl Compiler {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
+            symtab: symtab::Table::new(),
             instructions: code::Instructions::new(),
             constants: Vec::new(),
             last_ins: EmittedIns::new(),
@@ -67,6 +70,18 @@ impl Compiler {
         //println!("{stmt}");
 
         match stmt {
+            ast::Stmt::LetStmt {
+                token: _,
+                name,
+                value,
+            } => {
+                self.compiler_expr(value);
+
+                let sm = self.symtab.define(name.name.clone());
+                self.emit(Opcode::OpSetGlobal, Some(&vec![sm.index]));
+
+                //self.emit(Opcode::OpPop, None);
+            }
             ast::Stmt::ExprStmt { token: _, expr } => {
                 self.compiler_expr(expr);
                 self.emit(Opcode::OpPop, None);
@@ -83,6 +98,23 @@ impl Compiler {
 
     pub fn compiler_expr(&mut self, expr: &ast::Expr) {
         match expr {
+            ast::Expr::IdentExpr { token: _, value } => {
+                let sm = self.symtab.resolve(value.clone());
+                if let Ok(s) = sm {
+                    self.emit(Opcode::OpGetGlobal, Some(&vec![s.index]));
+                } else {
+                    panic!("undefined variable {value}");
+                }
+            }
+            ast::Expr::StringExpr { token, value } => {
+                let sl = Object::String {
+                    token: Some(Rc::new(token.clone())),
+                    value: value.to_string(),
+                };
+                let con = self.add_const(sl);
+                //println!("{con}");
+                self.emit(Opcode::OpConst, Some(&vec![con]));
+            }
             ast::Expr::NumExpr {
                 token,
                 value,
@@ -93,8 +125,13 @@ impl Compiler {
                     value: value.clone(),
                 };
                 let con = self.add_const(num);
-                //println!("{con}");
                 self.emit(Opcode::OpConst, Some(&vec![con]));
+            }
+            ast::Expr::ArrayExpr { token: _, elems } => {
+                for el in elems {
+                    self.compiler_expr(el)
+                }
+                self.emit(Opcode::OpArray, Some(&vec![elems.len()]));
             }
             ast::Expr::BoolExpr { token: _, value } => {
                 if *value {
@@ -120,31 +157,30 @@ impl Compiler {
                 trueblock,
                 elseblock,
             } => {
-                self.compiler_expr(&cond);
+                self.compiler_expr(cond);
 
                 let jntpos = self.emit(Opcode::OpJumpNotTruthy, Some(&vec![9999]));
-                self.compile_stmt(&trueblock);
+                self.compile_stmt(trueblock);
 
                 if self.is_last_ins(&Opcode::OpPop) {
                     self.remove_last_pop();
                 }
 
+                let jmppos = self.emit(Opcode::OpJump, Some(&vec![9999]));
+                let after_tb_pos = self.instructions.ins.len();
+                self.change_operand(jntpos, after_tb_pos);
+
                 if let Some(eb) = elseblock {
-                    let jmppos = self.emit(Opcode::OpJump, Some(&vec![9999]));
-
-                    let after_tb_pos = self.instructions.ins.len();
-                    self.change_operand(jntpos, after_tb_pos);
-
                     self.compile_stmt(eb);
                     if self.is_last_ins(&Opcode::OpPop) {
                         self.remove_last_pop();
                     }
-                    let after_eb_pos = self.instructions.ins.len();
-                    self.change_operand(jmppos, after_eb_pos)
                 } else {
-                    let after_tb_pos = self.instructions.ins.len();
-                    self.change_operand(jntpos, after_tb_pos);
+                    self.emit(Opcode::OpNull, None);
                 }
+
+                let after_eb_pos = self.instructions.ins.len();
+                self.change_operand(jmppos, after_eb_pos);
             }
 
             _ => {}
