@@ -5,3 +5,10 @@ edition = "2021"
 
 [dependencies]
 byteorder = "1.4.3"
+
+[dev-dependencies]
+criterion = "0.4"
+
+[[bench]]
+name = "lexer_bench"
+harness = false

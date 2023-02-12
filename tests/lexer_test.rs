@@ -25,3 +25,4 @@ fn test_lexer_next_token() {
         assert_eq!(ett, toktype)
     }
 }
+
