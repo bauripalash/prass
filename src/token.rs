@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, fmt::Display, hash::Hash};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Token {
     pub ttype: TokenType,
     pub literal: String,
@@ -136,7 +136,7 @@ impl From<usize> for NumberToken {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TokenType {
     //Illegal; Unknown symbol
     Illegal,

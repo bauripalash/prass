@@ -183,6 +183,25 @@ impl Compiler {
                 self.change_operand(jmppos, after_eb_pos);
             }
 
+            ast::Expr::HashExpr { token: _, pairs } => {
+                let mut p = pairs.clone();
+                p.sort_by_key(|(k, _)| k.to_string());
+                for (k, v) in &p {
+                    self.compiler_expr(k);
+                    self.compiler_expr(v)
+                }
+                self.emit(Opcode::OpHash, Some(&vec![p.len() * 2]));
+            }
+            ast::Expr::IndexExpr {
+                token: _,
+                left,
+                index,
+            } => {
+                self.compiler_expr(left);
+                self.compiler_expr(index);
+                self.emit(Opcode::OpIndex, None);
+            }
+
             _ => {}
         }
     }

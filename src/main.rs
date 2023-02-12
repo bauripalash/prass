@@ -1,7 +1,7 @@
 use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
 
 fn main() {
-    let src = "-1";
+    let src = "{\"1\":\"2\"}[\"1\"]";
     let a = Lexer::new(src);
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
@@ -20,5 +20,5 @@ fn main() {
     let mut v = Vm::new(c);
     v.run();
     //println!("{}", v.instructions);
-    println!("result->{:?}", v.last_pop());
+    println!("result->{:#?}", v.last_pop());
 }

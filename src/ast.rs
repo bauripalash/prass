@@ -17,7 +17,7 @@ pub struct Program {
     pub stmts: Vec<Rc<Stmt>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Identifier {
     pub token: Token,
     pub name: String,
@@ -40,7 +40,7 @@ impl Display for Identifier {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Ord)]
 pub enum Expr {
     NumExpr {
         token: Token,
@@ -228,7 +228,7 @@ impl Display for Expr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Ord)]
 pub enum Stmt {
     LetStmt {
         token: Token,

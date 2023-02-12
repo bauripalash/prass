@@ -1,8 +1,8 @@
-use std::rc::Rc;
+use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{
     compiler::code::{self, Bytecode, Instructions},
-    obj::{Object, NUMBER_OBJ, STRING_OBJ},
+    obj::{HashKey, HashPair, Object, ARRAY_OBJ, HASH_OBJ, NUMBER_OBJ, STRING_OBJ},
     token::NumberToken,
 };
 
@@ -131,9 +131,92 @@ impl Vm {
                     self.push(&arr);
                 }
 
+                code::Opcode::OpHash => {
+                    let num_of_elms =
+                        code::Instructions::read_uint16(self.instructions.ins.to_vec(), ip + 1)
+                            as usize;
+                    ip += 2;
+
+                    let hash = self.build_hash(self.sp - num_of_elms, self.sp);
+                    self.sp -= num_of_elms;
+
+                    self.push(&hash)
+                }
+                code::Opcode::OpIndex => {
+                    let index = self.pop();
+                    let left = self.pop();
+                    self.exe_index_expr(left, index)
+                }
+
                 _ => {}
             }
             ip += 1;
+        }
+    }
+
+    fn exe_index_expr(&mut self, left: Object, index: Object) {
+        if left.get_type() == ARRAY_OBJ && index.get_type() == NUMBER_OBJ {
+            self.exe_arr_index(left, index)
+        } else if left.get_type() == HASH_OBJ {
+            self.exe_hash_index(left, index)
+        } else {
+            panic!("index operator not supported -> {}", index.get_type())
+        }
+    }
+
+    fn exe_arr_index(&mut self, arr: Object, index: Object) {
+        let Object::Array { token : _ , value } = arr else { panic!("not array") };
+        let id: Option<i64> = if let Object::Number { token: _, value } = index {
+            Some(value.get_as_i64())
+        } else {
+            None
+        };
+
+        let max = (value.len() - 1) as i64;
+
+        if id.unwrap() < 0 || id.unwrap() > max {
+            self.push(&NULL)
+        } else {
+            self.push(&value[id.unwrap() as usize])
+        }
+    }
+
+    fn exe_hash_index(&mut self, hash: Object, index: Object) {
+        let Object::Hash { token : _, pairs } = hash else{ panic!("not hash") };
+        if !index.hashable() {
+            panic!("index key is not hashable")
+        }
+        let hk = HashKey {
+            key: index.get_hash(),
+        };
+        //println!("{:?}" , pairs);
+        if let Some(v) = pairs.get(&hk) {
+            self.push(&v.value.clone())
+        } else {
+            self.push(&NULL)
+        }
+    }
+
+    fn build_hash(&mut self, start: usize, end: usize) -> Object {
+        let mut hp: BTreeMap<Rc<HashKey>, Rc<HashPair>> = BTreeMap::new();
+
+        let mut i = start;
+
+        while i < end {
+            let k = Rc::new(self.stack[i].clone());
+            let v = Rc::new(self.stack[i + 1].clone());
+            if !k.hashable() {
+                panic!("key is not hashable")
+            }
+
+            let hk = Rc::new(HashKey { key: k.get_hash() });
+            hp.insert(hk, Rc::new(HashPair { key: k, value: v }));
+            i += 1;
+        }
+
+        Object::Hash {
+            token: None,
+            pairs: hp,
         }
     }
 

@@ -372,6 +372,9 @@ impl<'lx> Parser<'lx> {
             left: arr,
             index: indx,
         })
+
+        //println!("{:?}" , x);
+        //x
     }
 
     fn parse_expr_list(&mut self, end: &TokenType) -> Vec<Rc<ast::Expr>> {
@@ -544,7 +547,7 @@ impl<'lx> Parser<'lx> {
         let tok = self.curtok.clone();
         self.next_token();
         let elms = self.parse_expr_list(&TokenType::RSBracket);
-        self.next_token();
+        //self.next_token();
         Rc::new(ast::Expr::ArrayExpr {
             token: tok,
             elems: elms,

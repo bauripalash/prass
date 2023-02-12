@@ -1,4 +1,8 @@
-use std::{hash::Hash, rc::Rc};
+use std::{
+    collections::{hash_map::DefaultHasher, BTreeMap},
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
 pub mod env;
 use crate::{
@@ -21,7 +25,7 @@ pub const FUNC_OBJ: &str = "break";
 pub const INCLUDE_OBJ: &str = "include";
 pub const SHOW_OBJ: &str = "show";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord)]
 pub enum Object {
     Number {
         token: Option<Rc<Token>>,
@@ -68,8 +72,19 @@ pub enum Object {
     },
     Hash {
         token: Option<Rc<Token>>,
-        pairs: Vec<(Rc<Object>, Rc<Object>)>,
+        pairs: BTreeMap<Rc<HashKey>, Rc<HashPair>>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct HashKey {
+    pub key: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct HashPair {
+    pub key: Rc<Object>,
+    pub value: Rc<Object>,
 }
 
 impl Object {
@@ -80,6 +95,16 @@ impl Object {
                 | Self::Bool { token: _, value: _ }
                 | Self::String { token: _, value: _ }
         )
+    }
+
+    pub fn get_hash(&self) -> u64 {
+        if !self.hashable() {
+            panic!("not hashable")
+        }
+
+        let mut s = DefaultHasher::new();
+        self.hash(&mut s);
+        s.finish()
     }
 
     pub const fn get_type(&self) -> &str {
