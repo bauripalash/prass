@@ -63,7 +63,7 @@ impl OpDef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq , PartialOrd, Ord)]
 pub struct Instructions {
     pub ins: Vec<u8>,
 }

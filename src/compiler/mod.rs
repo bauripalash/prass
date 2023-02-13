@@ -11,7 +11,7 @@ use self::code::{get_def, make_ins, u8_to_op, Bytecode, Instructions, Opcode};
 pub mod code;
 pub mod symtab;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,PartialEq, Eq)]
 pub struct EmittedIns {
     pub opcode: code::Opcode,
     pub pos: usize,
@@ -32,13 +32,22 @@ impl Default for EmittedIns {
     }
 }
 
+#[derive(Debug , Clone , PartialEq , Eq)]
+pub struct CompScope{
+    pub ins : code::Instructions,
+    last_ins: EmittedIns,
+    prev_ins: EmittedIns,
+}
+
 #[derive(Debug, Clone)]
 pub struct Compiler {
     symtab: symtab::Table,
-    instructions: code::Instructions,
+    //instructions: code::Instructions,
     constants: Vec<Object>,
-    last_ins: EmittedIns,
-    prev_ins: EmittedIns,
+    scopes : Vec<CompScope>,
+    scope_index : usize,
+    //last_ins: EmittedIns,
+    //prev_ins: EmittedIns,
 }
 
 impl Default for Compiler {
@@ -49,13 +58,25 @@ impl Default for Compiler {
 
 impl Compiler {
     pub fn new() -> Self {
+        let mainscope = CompScope{
+            ins : code::Instructions::new(),
+            last_ins : EmittedIns::new(),
+            prev_ins : EmittedIns::new(),
+        };
         Self {
             symtab: symtab::Table::new(),
-            instructions: code::Instructions::new(),
+            //instructions: code::Instructions::new(),
             constants: Vec::new(),
-            last_ins: EmittedIns::new(),
-            prev_ins: EmittedIns::new(),
+            
+            scopes : vec![mainscope],
+            scope_index : 0,
+//            last_ins: EmittedIns::new(),
+  //          prev_ins: EmittedIns::new(),
         }
+    }
+
+    pub fn current_ins(&self) -> code::Instructions {
+        self.scopes[self.scope_index].ins.clone()
     }
 
     pub fn compile(&mut self, node: ast::Program) -> Bytecode {
@@ -90,6 +111,10 @@ impl Compiler {
                 for s in stmts {
                     self.compile_stmt(s)
                 }
+            },
+            ast::Stmt::ReturnStmt { token : _, rval } => {
+                self.compiler_expr(rval);
+                self.emit(Opcode::OpReturnValue, None);
             }
 
             _ => {}
@@ -167,7 +192,7 @@ impl Compiler {
                 }
 
                 let jmppos = self.emit(Opcode::OpJump, Some(&vec![9999]));
-                let after_tb_pos = self.instructions.ins.len();
+                let after_tb_pos = self.current_ins().ins.len();
                 self.change_operand(jntpos, after_tb_pos);
 
                 if let Some(eb) = elseblock {
@@ -179,7 +204,7 @@ impl Compiler {
                     self.emit(Opcode::OpNull, None);
                 }
 
-                let after_eb_pos = self.instructions.ins.len();
+                let after_eb_pos = self.current_ins().ins.len();
                 self.change_operand(jmppos, after_eb_pos);
             }
 
@@ -200,10 +225,31 @@ impl Compiler {
                 self.compiler_expr(left);
                 self.compiler_expr(index);
                 self.emit(Opcode::OpIndex, None);
+            },
+
+            ast::Expr::FuncExpr { token : _, params, body } => {
+                self.enter_scope();
+                self.compile_stmt(body);
+                if self.is_last_ins(&Opcode::OpPop){
+                    self.replace_last_pop_with_return()
+
+                }
+                let ins = self.leave_scope();
+
+                let cmp_fn = Object::Compfunc { ins: Rc::new(ins) };
+                let con = self.add_const(cmp_fn); 
+                self.emit(Opcode::OpConst, Some(&vec![con]));
             }
 
             _ => {}
         }
+    }
+
+    fn replace_last_pop_with_return(&mut self) {
+        let lastpos = self.scopes[self.scope_index].last_ins.pos;
+    
+        self.replace_ins(lastpos, code::make_ins(Opcode::OpReturnValue, &[]));
+        self.scopes[self.scope_index].last_ins.opcode = Opcode::OpReturnValue;
     }
 
     pub fn compiler_prefix_expr(&mut self, right: &ast::Expr, op: &Token) {
@@ -219,13 +265,14 @@ impl Compiler {
     pub fn replace_ins(&mut self, pos: usize, new_ins: Vec<u8>) {
         let mut i = 0;
         while i < new_ins.len() {
-            self.instructions.ins[pos + i] = new_ins[i];
+            self.current_ins().ins[pos+i] = new_ins[i];
+//            self.instructions.ins[pos + i] = new_ins[i];
             i += 1;
         }
     }
 
     pub fn change_operand(&mut self, pos: usize, operand: usize) {
-        let op = u8_to_op(self.instructions.ins[pos]);
+        let op = u8_to_op(self.current_ins().ins[pos]);
         let ins = make_ins(op, &[operand]);
         self.replace_ins(pos, ins);
     }
@@ -274,19 +321,30 @@ impl Compiler {
     }
 
     fn set_last_ins(&mut self, op: Opcode, pos: usize) {
-        let prev = self.last_ins.clone();
+        let prev =  &self.scopes[self.scope_index].last_ins; //self.last_ins.clone();
         let last = EmittedIns { opcode: op, pos };
-        self.prev_ins = prev;
-        self.last_ins = last;
+        self.scopes[self.scope_index].prev_ins = prev.clone();
+        self.scopes[self.scope_index].last_ins = last;
     }
 
     fn is_last_ins(&self, op: &Opcode) -> bool {
-        self.last_ins.opcode == *op
+        if self.current_ins().ins.len() == 0{
+            return false;
+        }
+        self.scopes[self.scope_index].last_ins.opcode == *op
     }
 
     fn remove_last_pop(&mut self) {
-        self.instructions.ins = self.instructions.ins[..self.last_ins.pos].to_vec();
-        self.last_ins = self.prev_ins.clone();
+        //self.instructions.ins = self.instructions.ins[..self.last_ins.pos].to_vec();
+        //self.last_ins = self.prev_ins.clone();
+        let last = self.scopes[self.scope_index].last_ins.clone();
+        let prev = self.scopes[self.scope_index].prev_ins.clone();
+
+        let old = self.current_ins().clone();
+        let new = &old.ins[..last.pos];
+
+        self.scopes[self.scope_index].ins.ins = new.to_vec();
+        self.scopes[self.scope_index].last_ins = prev;
     }
 
     fn add_const(&mut self, obj: Object) -> usize {
@@ -295,14 +353,40 @@ impl Compiler {
     }
 
     pub fn add_inst(&mut self, ins: Instructions) -> usize {
-        let pos_of_new_ins = self.instructions.ins.len();
-        self.instructions.add_ins(ins.ins);
+        let pos_of_new_ins = self.current_ins().ins.len();
+        let mut cloned_ins = self.current_ins().clone();
+        cloned_ins.add_ins(ins.ins);
+        self.scopes[self.scope_index].ins = cloned_ins;
+        
+
+        
+        
+        //self.instructions.add_ins(ins.ins);
         pos_of_new_ins
+    }
+
+    pub fn enter_scope(&mut self){
+        let scope = CompScope {
+            ins : code::Instructions::new(),
+            last_ins : EmittedIns::new(),
+            prev_ins : EmittedIns::new(),
+        };
+
+        self.scopes.push(scope);
+        self.scope_index += 1;
+    }
+
+    pub fn leave_scope(&mut self) -> code::Instructions {
+        let ins = self.current_ins();
+        self.scopes = self.scopes[..self.scopes.len()-1].to_vec();
+        self.scope_index -= 1;
+
+        ins
     }
 
     pub fn bytecode(&self) -> Bytecode {
         Bytecode {
-            instructions: self.instructions.clone(),
+            instructions: self.current_ins().clone(),
             constants: self.constants.clone(),
         }
     }

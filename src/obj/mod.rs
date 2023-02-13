@@ -1,13 +1,13 @@
 use std::{
     collections::{hash_map::DefaultHasher, BTreeMap},
     hash::{Hash, Hasher},
-    rc::Rc,
+    rc::Rc, fmt::Display,
 };
 
 pub mod env;
 use crate::{
     ast,
-    token::{self, Token},
+    token::{self, Token}, compiler::code::Instructions,
 };
 
 use self::env::Env;
@@ -21,9 +21,10 @@ pub const NULL_OBJ: &str = "null";
 pub const RVALUE_OBJ: &str = "rvalue";
 pub const ERR_OBJ: &str = "err";
 pub const BREAK_OBJ: &str = "break";
-pub const FUNC_OBJ: &str = "break";
+pub const FUNC_OBJ: &str = "func";
 pub const INCLUDE_OBJ: &str = "include";
 pub const SHOW_OBJ: &str = "show";
+pub const COMPILED_FUNC_OBJ : &str = "compiled_func";
 
 #[derive(Debug, Clone, PartialOrd, Ord)]
 pub enum Object {
@@ -74,6 +75,19 @@ pub enum Object {
         token: Option<Rc<Token>>,
         pairs: BTreeMap<Rc<HashKey>, Rc<HashPair>>,
     },
+
+    Compfunc {
+        ins : Rc<Instructions>     
+    }
+}
+
+impl Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Object::Compfunc { ins } => write!(f , "fn({})" , ins),
+            _ => write!(f,"{:?}" , self)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -123,6 +137,7 @@ impl Object {
 
             Self::Number { .. } => NUMBER_OBJ,
             Self::Error { .. } => ERR_OBJ,
+            Self::Compfunc { .. } => COMPILED_FUNC_OBJ,
         }
     }
 }
