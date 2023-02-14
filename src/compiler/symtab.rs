@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Scope {
@@ -15,6 +15,7 @@ pub struct Symbol {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Table {
+    pub outer: Option<Rc<Table>>,
     pub store: HashMap<String, Symbol>,
     pub numdef: usize,
 }
@@ -22,6 +23,15 @@ pub struct Table {
 impl Table {
     pub fn new() -> Self {
         Self {
+            outer: None,
+            store: HashMap::new(),
+            numdef: 0,
+        }
+    }
+
+    pub fn new_enclosed(outer: Self) -> Self {
+        Self {
+            outer: Some(Rc::new(outer)),
             store: HashMap::new(),
             numdef: 0,
         }
