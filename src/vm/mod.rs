@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, rc::Rc};
 
+pub mod frame;
+
 use crate::{
     compiler::code::{self, Bytecode, Instructions},
     obj::{HashKey, HashPair, Object, ARRAY_OBJ, HASH_OBJ, NUMBER_OBJ, STRING_OBJ},

@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::{
     ast,
-    obj::Object,
+    obj::{CompFunc, Object},
     token::{Token, TokenType},
 };
 
@@ -247,7 +247,7 @@ impl Compiler {
                 }
                 let ins = self.leave_scope();
 
-                let cmp_fn = Object::Compfunc { ins: Rc::new(ins) };
+                let cmp_fn = Object::Compfunc(CompFunc { fnin: ins });
                 let con = self.add_const(cmp_fn);
                 self.emit(Opcode::OpConst, Some(&vec![con]));
             }
