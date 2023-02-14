@@ -1,13 +1,15 @@
 use std::{
     collections::{hash_map::DefaultHasher, BTreeMap},
+    fmt::Display,
     hash::{Hash, Hasher},
-    rc::Rc, fmt::Display,
+    rc::Rc,
 };
 
 pub mod env;
 use crate::{
     ast,
-    token::{self, Token}, compiler::code::Instructions,
+    compiler::code::Instructions,
+    token::{self, Token},
 };
 
 use self::env::Env;
@@ -24,7 +26,7 @@ pub const BREAK_OBJ: &str = "break";
 pub const FUNC_OBJ: &str = "func";
 pub const INCLUDE_OBJ: &str = "include";
 pub const SHOW_OBJ: &str = "show";
-pub const COMPILED_FUNC_OBJ : &str = "compiled_func";
+pub const COMPILED_FUNC_OBJ: &str = "compiled_func";
 
 #[derive(Debug, Clone, PartialOrd, Ord)]
 pub enum Object {
@@ -77,15 +79,15 @@ pub enum Object {
     },
 
     Compfunc {
-        ins : Rc<Instructions>     
-    }
+        ins: Rc<Instructions>,
+    },
 }
 
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Object::Compfunc { ins } => write!(f , "fn({})" , ins),
-            _ => write!(f,"{:?}" , self)
+            Self::Compfunc { ins } => write!(f, "fn({ins})"),
+            _ => write!(f, "{self:?}"),
         }
     }
 }

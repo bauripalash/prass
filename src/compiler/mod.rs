@@ -11,7 +11,7 @@ use self::code::{get_def, make_ins, u8_to_op, Bytecode, Instructions, Opcode};
 pub mod code;
 pub mod symtab;
 
-#[derive(Debug, Clone,PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmittedIns {
     pub opcode: code::Opcode,
     pub pos: usize,
@@ -32,9 +32,9 @@ impl Default for EmittedIns {
     }
 }
 
-#[derive(Debug , Clone , PartialEq , Eq)]
-pub struct CompScope{
-    pub ins : code::Instructions,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompScope {
+    pub ins: code::Instructions,
     last_ins: EmittedIns,
     prev_ins: EmittedIns,
 }
@@ -44,8 +44,8 @@ pub struct Compiler {
     symtab: symtab::Table,
     //instructions: code::Instructions,
     constants: Vec<Object>,
-    scopes : Vec<CompScope>,
-    scope_index : usize,
+    scopes: Vec<CompScope>,
+    scope_index: usize,
     //last_ins: EmittedIns,
     //prev_ins: EmittedIns,
 }
@@ -58,25 +58,29 @@ impl Default for Compiler {
 
 impl Compiler {
     pub fn new() -> Self {
-        let mainscope = CompScope{
-            ins : code::Instructions::new(),
-            last_ins : EmittedIns::new(),
-            prev_ins : EmittedIns::new(),
+        let mainscope = CompScope {
+            ins: code::Instructions::new(),
+            last_ins: EmittedIns::new(),
+            prev_ins: EmittedIns::new(),
         };
         Self {
             symtab: symtab::Table::new(),
             //instructions: code::Instructions::new(),
             constants: Vec::new(),
-            
-            scopes : vec![mainscope],
-            scope_index : 0,
-//            last_ins: EmittedIns::new(),
-  //          prev_ins: EmittedIns::new(),
+
+            scopes: vec![mainscope],
+            scope_index: 0,
+            //            last_ins: EmittedIns::new(),
+            //          prev_ins: EmittedIns::new(),
         }
     }
 
-    pub fn current_ins(&self) -> code::Instructions {
-        self.scopes[self.scope_index].ins.clone()
+    pub fn current_ins(&self) -> &code::Instructions {
+        &self.scopes[self.scope_index].ins
+    }
+
+    pub fn current_ins_mut(&mut self) -> &mut code::Instructions {
+        &mut self.scopes[self.scope_index].ins
     }
 
     pub fn compile(&mut self, node: ast::Program) -> Bytecode {
@@ -111,8 +115,8 @@ impl Compiler {
                 for s in stmts {
                     self.compile_stmt(s)
                 }
-            },
-            ast::Stmt::ReturnStmt { token : _, rval } => {
+            }
+            ast::Stmt::ReturnStmt { token: _, rval } => {
                 self.compiler_expr(rval);
                 self.emit(Opcode::OpReturnValue, None);
             }
@@ -225,20 +229,36 @@ impl Compiler {
                 self.compiler_expr(left);
                 self.compiler_expr(index);
                 self.emit(Opcode::OpIndex, None);
-            },
+            }
 
-            ast::Expr::FuncExpr { token : _, params, body } => {
+            ast::Expr::FuncExpr {
+                token: _,
+                params: _,
+                body,
+            } => {
                 self.enter_scope();
                 self.compile_stmt(body);
-                if self.is_last_ins(&Opcode::OpPop){
+                if self.is_last_ins(&Opcode::OpPop) {
                     self.replace_last_pop_with_return()
+                }
 
+                if !self.is_last_ins(&Opcode::OpReturnValue) {
+                    self.emit(Opcode::OpReturn, None);
                 }
                 let ins = self.leave_scope();
 
                 let cmp_fn = Object::Compfunc { ins: Rc::new(ins) };
-                let con = self.add_const(cmp_fn); 
+                let con = self.add_const(cmp_fn);
                 self.emit(Opcode::OpConst, Some(&vec![con]));
+            }
+
+            ast::Expr::CallExpr {
+                token: _,
+                func,
+                args: _,
+            } => {
+                self.compiler_expr(func);
+                self.emit(Opcode::OpCall, None);
             }
 
             _ => {}
@@ -247,7 +267,7 @@ impl Compiler {
 
     fn replace_last_pop_with_return(&mut self) {
         let lastpos = self.scopes[self.scope_index].last_ins.pos;
-    
+
         self.replace_ins(lastpos, code::make_ins(Opcode::OpReturnValue, &[]));
         self.scopes[self.scope_index].last_ins.opcode = Opcode::OpReturnValue;
     }
@@ -265,8 +285,8 @@ impl Compiler {
     pub fn replace_ins(&mut self, pos: usize, new_ins: Vec<u8>) {
         let mut i = 0;
         while i < new_ins.len() {
-            self.current_ins().ins[pos+i] = new_ins[i];
-//            self.instructions.ins[pos + i] = new_ins[i];
+            self.current_ins_mut().ins[pos + i] = new_ins[i];
+            //            self.instructions.ins[pos + i] = new_ins[i];
             i += 1;
         }
     }
@@ -321,14 +341,14 @@ impl Compiler {
     }
 
     fn set_last_ins(&mut self, op: Opcode, pos: usize) {
-        let prev =  &self.scopes[self.scope_index].last_ins; //self.last_ins.clone();
+        let prev = &self.scopes[self.scope_index].last_ins; //self.last_ins.clone();
         let last = EmittedIns { opcode: op, pos };
         self.scopes[self.scope_index].prev_ins = prev.clone();
         self.scopes[self.scope_index].last_ins = last;
     }
 
     fn is_last_ins(&self, op: &Opcode) -> bool {
-        if self.current_ins().ins.len() == 0{
+        if self.current_ins().ins.is_empty() {
             return false;
         }
         self.scopes[self.scope_index].last_ins.opcode == *op
@@ -357,19 +377,16 @@ impl Compiler {
         let mut cloned_ins = self.current_ins().clone();
         cloned_ins.add_ins(ins.ins);
         self.scopes[self.scope_index].ins = cloned_ins;
-        
 
-        
-        
         //self.instructions.add_ins(ins.ins);
         pos_of_new_ins
     }
 
-    pub fn enter_scope(&mut self){
+    pub fn enter_scope(&mut self) {
         let scope = CompScope {
-            ins : code::Instructions::new(),
-            last_ins : EmittedIns::new(),
-            prev_ins : EmittedIns::new(),
+            ins: code::Instructions::new(),
+            last_ins: EmittedIns::new(),
+            prev_ins: EmittedIns::new(),
         };
 
         self.scopes.push(scope);
@@ -377,8 +394,8 @@ impl Compiler {
     }
 
     pub fn leave_scope(&mut self) -> code::Instructions {
-        let ins = self.current_ins();
-        self.scopes = self.scopes[..self.scopes.len()-1].to_vec();
+        let ins = self.current_ins().clone();
+        self.scopes = self.scopes[..self.scopes.len() - 1].to_vec();
         self.scope_index -= 1;
 
         ins

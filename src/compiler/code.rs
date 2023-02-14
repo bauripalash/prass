@@ -63,7 +63,7 @@ impl OpDef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq , PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instructions {
     pub ins: Vec<u8>,
 }
@@ -91,7 +91,7 @@ pub fn get_def(op: &Opcode) -> OpDef {
         Opcode::OpArray => OpDef::new("OpArray", vec![2]),
         Opcode::OpHash => OpDef::new("OpHash", vec![2]),
         Opcode::OpIndex => OpDef::new("OpIndex", vec![]),
-        Opcode::OpCall => OpDef::new("OpCall", vec![1]),
+        Opcode::OpCall => OpDef::new("OpCall", vec![]), //TODO:1
         Opcode::OpReturnValue => OpDef::new("OpReturnValue", vec![]),
         Opcode::OpReturn => OpDef::new("OpReturn", vec![]),
         Opcode::OpGetLocal => OpDef::new("OpGetLocal", vec![1]),
