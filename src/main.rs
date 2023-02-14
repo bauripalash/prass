@@ -3,8 +3,8 @@ use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
 fn main() {
     let src = "dhori a = ekti kaj() 1 sesh
         a()";
-    //    let src = "ekti kaj() 1; 2 sesh";
-    //let src = "jodi (false) tahole 1 nahole sesh";
+    //   let src = "ekti kaj() 1; 2 sesh";
+    //let src = "jodi (true) tahole 1 nahole sesh";
 
     let a = Lexer::new(src);
     let mut parser = Parser::new(a);

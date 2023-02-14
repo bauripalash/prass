@@ -4,12 +4,15 @@ pub mod frame;
 
 use crate::{
     compiler::code::{self, Bytecode, Instructions},
-    obj::{HashKey, HashPair, Object, ARRAY_OBJ, HASH_OBJ, NUMBER_OBJ, STRING_OBJ},
+    obj::{CompFunc, HashKey, HashPair, Object, ARRAY_OBJ, HASH_OBJ, NUMBER_OBJ, STRING_OBJ},
     token::NumberToken,
 };
 
+use self::frame::Frame;
+
 const STACK_SIZE: usize = 2048;
 const GLOBALS_SIZE: usize = 1024; //Change
+static FRAMES_SIZE: usize = 1024;
 
 const TRUE: Object = Object::Bool {
     token: None,
@@ -32,20 +35,27 @@ const fn bool_native_to_obj(b: bool) -> Object {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vm {
     constants: Vec<Object>,
-    pub instructions: code::Instructions,
+    //pub instructions: code::Instructions,
     stack: Vec<Object>,
     sp: usize,
     globals: Vec<Object>,
+    frames: Vec<Frame>,
+    frame_index: usize,
 }
 
 impl Vm {
     pub fn new(bc: Bytecode) -> Self {
+        let main_func = CompFunc::new(bc.instructions);
+        let main_frame = Frame::new(main_func);
+        let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
+        frames[0] = main_frame;
         Self {
             constants: bc.constants,
-            instructions: bc.instructions,
             stack: vec![Object::Null; STACK_SIZE],
             globals: vec![Object::Null; GLOBALS_SIZE],
             sp: 0,
+            frames,
+            frame_index: 1,
         }
     }
 
@@ -57,21 +67,56 @@ impl Vm {
         }
     }
 
+    fn current_frame(&self) -> &Frame {
+        &self.frames[self.frame_index - 1]
+    }
+
+    fn current_frame_mut(&mut self) -> &mut Frame {
+        &mut self.frames[self.frame_index - 1]
+    }
+
+    fn push_frame(&mut self, f: Frame) {
+        self.frames[self.frame_index] = f;
+        self.frame_index += 1;
+    }
+
+    fn pop_frame(&mut self) -> Frame {
+        self.frame_index -= 1;
+        self.frames[self.frame_index].clone()
+    }
+
+    fn adv_ip(&mut self, by: usize) {
+        self.current_frame_mut().ip += by as i64
+    }
+
+    fn set_ip(&mut self, t: usize) {
+        self.current_frame_mut().ip = t as i64
+    }
+
     pub fn run(&mut self) {
-        let mut ip = 0;
-        while ip < self.instructions.ins.len() {
-            let op = code::u8_to_op(self.instructions.ins[ip]);
+        let mut ip: usize;
+        let mut ins: Instructions;
+        let mut op: code::Opcode;
+        while self.current_frame().ip
+            < (self.current_frame().get_instructions().ins.len() as i64) - 1
+        {
+            //self.current_frame_mut().ip += 1;
+            self.adv_ip(1);
+            ip = self.current_frame().ip as usize;
+            ins = self.current_frame().get_instructions();
+            op = code::u8_to_op(ins.ins[ip]);
             //println!("{:?}", op);
 
             match op {
                 code::Opcode::OpConst => {
-                    let op_ins = &self.instructions.ins;
+                    let op_ins = ins.ins;
                     let con_index = Instructions::read_uint16(op_ins.to_vec(), ip + 1) as usize;
                     let con_obj = &self.constants[con_index].clone();
                     self.push(con_obj);
 
                     //println!("{con_index:?}");
-                    ip += 2;
+                    //ip += 2;
+                    self.adv_ip(2);
                 }
                 code::Opcode::OpPop => {
                     self.pop();
@@ -91,42 +136,42 @@ impl Vm {
                 code::Opcode::OpMinus => self.exe_pref_minux(),
                 code::Opcode::OpNull => self.push(&NULL),
                 code::Opcode::OpSetGlobal => {
-                    let gi = code::Instructions::read_uint16(self.instructions.ins.to_vec(), ip + 1)
-                        as usize;
-                    ip += 2;
+                    let gi = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    //ip += 2;
+                    self.adv_ip(2);
                     self.globals[gi] = self.pop()
                 }
                 code::Opcode::OpGetGlobal => {
-                    let gi = code::Instructions::read_uint16(self.instructions.ins.to_vec(), ip + 1)
-                        as usize;
-                    ip += 2;
+                    let gi = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    //ip += 2;
+                    self.adv_ip(2);
 
                     self.push(&self.globals[gi].clone())
                 }
                 code::Opcode::OpJump => {
-                    let pos =
-                        code::Instructions::read_uint16(self.instructions.ins.to_vec(), ip + 1);
-                    ip = (pos - 1) as usize
+                    let pos = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1);
+                    //ip = (pos - 1) as usize
+                    self.set_ip((pos - 1) as usize)
                 }
 
                 code::Opcode::OpJumpNotTruthy => {
-                    let pos =
-                        code::Instructions::read_uint16(self.instructions.ins.to_vec(), ip + 1)
-                            as usize;
+                    let pos = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
 
-                    ip += 2;
+                    //ip += 2;
+                    self.adv_ip(2);
 
                     let cond = self.pop();
 
                     if !self.is_obj_truthy(&cond) {
-                        ip = pos - 1;
+                        //ip = pos - 1;
+                        self.set_ip(pos - 1)
                     }
                 }
                 code::Opcode::OpArray => {
                     let num_of_elms =
-                        code::Instructions::read_uint16(self.instructions.ins.to_vec(), ip + 1)
-                            as usize;
-                    ip += 2;
+                        code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    //ip += 2;
+                    self.adv_ip(2);
 
                     let arr = self.build_arr(self.sp - num_of_elms, self.sp);
                     self.sp -= num_of_elms;
@@ -135,9 +180,9 @@ impl Vm {
 
                 code::Opcode::OpHash => {
                     let num_of_elms =
-                        code::Instructions::read_uint16(self.instructions.ins.to_vec(), ip + 1)
-                            as usize;
-                    ip += 2;
+                        code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    //ip += 2;
+                    self.adv_ip(2);
 
                     let hash = self.build_hash(self.sp - num_of_elms, self.sp);
                     self.sp -= num_of_elms;
@@ -149,10 +194,29 @@ impl Vm {
                     let left = self.pop();
                     self.exe_index_expr(left, index)
                 }
+                code::Opcode::OpCall => {
+                    let stack_object = &self.stack[self.sp - 1];
+                    let Object::Compfunc(cf) = stack_object else{
+                        panic!("stack object is not compiled function")
+                    } ;
+                    let frm = Frame::new(cf.clone());
+                    self.push_frame(frm)
+                }
+                code::Opcode::OpReturnValue => {
+                    let rvalue = self.pop();
+                    self.pop_frame();
+                    self.pop();
+                    self.push(&rvalue)
+                }
+                code::Opcode::OpReturn => {
+                    self.pop_frame();
+                    self.pop();
+                    self.push(&NULL);
+                }
 
                 _ => {}
             }
-            ip += 1;
+            //ip += 1;
         }
     }
 
