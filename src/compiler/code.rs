@@ -91,7 +91,7 @@ pub fn get_def(op: &Opcode) -> OpDef {
         Opcode::OpArray => OpDef::new("OpArray", vec![2]),
         Opcode::OpHash => OpDef::new("OpHash", vec![2]),
         Opcode::OpIndex => OpDef::new("OpIndex", vec![]),
-        Opcode::OpCall => OpDef::new("OpCall", vec![]), //TODO:1
+        Opcode::OpCall => OpDef::new("OpCall", vec![1]),
         Opcode::OpReturnValue => OpDef::new("OpReturnValue", vec![]),
         Opcode::OpReturn => OpDef::new("OpReturn", vec![]),
         Opcode::OpGetLocal => OpDef::new("OpGetLocal", vec![1]),
@@ -199,6 +199,15 @@ impl Instructions {
         let mut tc = Cursor::new(insts[start..].to_vec());
 
         if let Ok(v) = tc.read_u16::<BigEndian>() {
+            return v;
+        }
+
+        0
+    }
+
+    pub fn read_u8(insts: &Vec<u8>) -> u8 {
+        let mut tc = Cursor::new(insts);
+        if let Ok(v) = tc.read_u8() {
             return v;
         }
 

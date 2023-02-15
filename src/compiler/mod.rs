@@ -6,7 +6,10 @@ use crate::{
     token::{Token, TokenType},
 };
 
-use self::code::{get_def, make_ins, u8_to_op, Bytecode, Instructions, Opcode};
+use self::{
+    code::{get_def, make_ins, u8_to_op, Bytecode, Instructions, Opcode},
+    symtab::{Symbol, Table},
+};
 
 pub mod code;
 pub mod symtab;
@@ -41,7 +44,7 @@ pub struct CompScope {
 
 #[derive(Debug, Clone)]
 pub struct Compiler {
-    symtab: symtab::Table,
+    pub symtab: symtab::Table,
     //instructions: code::Instructions,
     constants: Vec<Object>,
     scopes: Vec<CompScope>,
@@ -100,10 +103,19 @@ impl Compiler {
                 name,
                 value,
             } => {
+                let sm = self.symtab.define(name.name.clone());
+                //println!("+++++name->{}={:?}", name.name , sm);
                 self.compiler_expr(value);
 
-                let sm = self.symtab.define(name.name.clone());
-                self.emit(Opcode::OpSetGlobal, Some(&vec![sm.index]));
+                match sm.scope {
+                    symtab::Scope::Global => {
+                        self.emit(Opcode::OpSetGlobal, Some(&vec![sm.index]));
+                    }
+                    symtab::Scope::Local => {
+                        self.emit(Opcode::OpSetLocal, Some(&vec![sm.index]));
+                    }
+                    _ => {}
+                };
 
                 //self.emit(Opcode::OpPop, None);
             }
@@ -129,8 +141,9 @@ impl Compiler {
         match expr {
             ast::Expr::IdentExpr { token: _, value } => {
                 let sm = self.symtab.resolve(value.clone());
+
                 if let Ok(s) = sm {
-                    self.emit(Opcode::OpGetGlobal, Some(&vec![s.index]));
+                    self.load_symbol(&s);
                 } else {
                     panic!("undefined variable {value}");
                 }
@@ -231,13 +244,17 @@ impl Compiler {
                 self.emit(Opcode::OpIndex, None);
             }
 
-            ast::Expr::FuncExpr {
-                token: _,
-                params: _,
-                body,
-            } => {
+            ast::Expr::FuncExpr(f) => {
                 self.enter_scope();
-                self.compile_stmt(body);
+                if !f.name.is_empty() {
+                    self.symtab.define_func(f.name.clone());
+                }
+                let fun_params = f.params.to_vec();
+
+                for p in &fun_params {
+                    self.symtab.define(p.name.clone());
+                }
+                self.compile_stmt(&f.body);
                 if self.is_last_ins(&Opcode::OpPop) {
                     self.replace_last_pop_with_return()
                 }
@@ -245,24 +262,48 @@ impl Compiler {
                 if !self.is_last_ins(&Opcode::OpReturnValue) {
                     self.emit(Opcode::OpReturn, None);
                 }
+                let free_syms = self.symtab.free_syms.clone();
+                let num_locals = self.symtab.numdef;
                 let ins = self.leave_scope();
 
-                let cmp_fn = Object::Compfunc(CompFunc { fnin: ins });
+                for s in &free_syms {
+                    self.load_symbol(s);
+                }
+
+                let cmp_fn = Object::Compfunc(CompFunc {
+                    fnin: ins,
+                    num_locals,
+                    num_params: fun_params.len(),
+                });
                 let con = self.add_const(cmp_fn);
-                self.emit(Opcode::OpConst, Some(&vec![con]));
+                self.emit(Opcode::OpClosure, Some(&vec![con, free_syms.len()]));
             }
 
             ast::Expr::CallExpr {
                 token: _,
                 func,
-                args: _,
+                args,
             } => {
                 self.compiler_expr(func);
-                self.emit(Opcode::OpCall, None);
+                for arg in args {
+                    self.compiler_expr(arg)
+                }
+                self.emit(Opcode::OpCall, Some(&vec![args.len()]));
             }
 
             _ => {}
         }
+    }
+
+    fn load_symbol(&mut self, sym: &Symbol) {
+        match sym.scope {
+            symtab::Scope::Global => self.emit(Opcode::OpGetGlobal, Some(&vec![sym.index])),
+            symtab::Scope::Local => self.emit(Opcode::OpGetLocal, Some(&vec![sym.index])),
+
+            symtab::Scope::Free => self.emit(Opcode::OpGetFree, Some(&vec![sym.index])),
+
+            symtab::Scope::Func => self.emit(Opcode::OpCurrentClosure, None),
+        };
     }
 
     fn replace_last_pop_with_return(&mut self) {
@@ -389,7 +430,9 @@ impl Compiler {
             prev_ins: EmittedIns::new(),
         };
 
+        self.symtab = Table::new_enclosed(self.symtab.clone());
         self.scopes.push(scope);
+
         self.scope_index += 1;
     }
 
@@ -397,6 +440,7 @@ impl Compiler {
         let ins = self.current_ins().clone();
         self.scopes = self.scopes[..self.scopes.len() - 1].to_vec();
         self.scope_index -= 1;
+        self.symtab = self.symtab.get_outer().unwrap();
 
         ins
     }

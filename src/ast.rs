@@ -102,11 +102,7 @@ pub enum Expr {
         stmts: Rc<Stmt>, //Block Stmt
     },
 
-    FuncExpr {
-        token: Token,
-        params: Rc<Vec<Identifier>>,
-        body: Rc<Stmt>,
-    },
+    FuncExpr(FuncExpr),
 
     CallExpr {
         token: Token,
@@ -120,6 +116,24 @@ pub enum Expr {
     NullExpr,
     ErrExpr,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FuncExpr {
+    pub token: Token,
+    pub name: String,
+    pub params: Rc<Vec<Identifier>>,
+    pub body: Rc<Stmt>,
+}
+
+impl Expr {
+    pub fn get_fn(&mut self) -> Option<&mut FuncExpr> {
+        if let Self::FuncExpr(f) = self {
+            return Some(f);
+        }
+        None
+    }
+}
+
 impl AstNode for Expr {}
 impl Eq for Expr {}
 impl Display for Expr {
@@ -180,18 +194,14 @@ impl Display for Expr {
                 format!("while({cond}:{stmts})")
             }
 
-            Self::FuncExpr {
-                token: _,
-                params,
-                body,
-            } => {
+            Self::FuncExpr(f) => {
                 let mut ps = String::new();
 
-                for p in &**params {
+                for p in f.params.iter() {
                     ps.push_str(format!("{p}").as_str())
                 }
 
-                format!("func({ps}:{body})")
+                format!("func({ps}:{})", f.body)
             }
             Self::IncludeExpr { token: _, filename } => {
                 format!("inc({filename})")

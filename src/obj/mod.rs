@@ -27,6 +27,7 @@ pub const FUNC_OBJ: &str = "func";
 pub const INCLUDE_OBJ: &str = "include";
 pub const SHOW_OBJ: &str = "show";
 pub const COMPILED_FUNC_OBJ: &str = "compiled_func";
+pub const CLOSURE_OBJ: &str = "closure";
 
 #[derive(Debug, Clone, PartialOrd, Ord)]
 pub enum Object {
@@ -79,11 +80,49 @@ pub enum Object {
     },
 
     Compfunc(CompFunc),
+
+    Closure(Closure),
 }
 
+#[derive(Debug, Default , Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Closure {
+    pub fun: CompFunc,
+    pub frees: Vec<Rc<Object>>,
+}
+
+impl Closure {
+    pub const fn new(fnin: Instructions) -> Self {
+        Self {
+            fun: CompFunc::new(fnin),
+            frees: Vec::new(),
+        }
+    }
+
+    pub const fn new_from_cfn(fun: CompFunc) -> Self {
+        Self { fun, frees: vec![] }
+    }
+}
+
+/*impl Default for Closure {
+    fn default() -> Self {
+        Self {
+            fun: CompFunc::default(),
+            frees: vec![],
+        }
+    }
+}
+*/
+
+impl Display for Closure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CL({}->{})", self.fun, self.frees.len())
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CompFunc {
     pub fnin: Instructions,
+    pub num_locals: usize,
+    pub num_params: usize,
 }
 
 impl Display for CompFunc {
@@ -96,19 +135,26 @@ impl Default for CompFunc {
     fn default() -> Self {
         Self {
             fnin: Instructions::new(),
+            num_locals: 0,
+            num_params: 0,
         }
     }
 }
 
 impl CompFunc {
     pub const fn new(fnin: Instructions) -> Self {
-        Self { fnin }
+        Self {
+            fnin,
+            num_locals: 0,
+            num_params: 0,
+        }
     }
 }
 
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Closure(cl) => write!(f, "cl({cl})"),
             Self::Compfunc(cfn) => write!(f, "fn({cfn})"),
             _ => write!(f, "{self:?}"),
         }
@@ -163,6 +209,7 @@ impl Object {
             Self::Number { .. } => NUMBER_OBJ,
             Self::Error { .. } => ERR_OBJ,
             Self::Compfunc { .. } => COMPILED_FUNC_OBJ,
+            Self::Closure { .. } => CLOSURE_OBJ,
         }
     }
 }

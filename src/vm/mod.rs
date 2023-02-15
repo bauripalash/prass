@@ -4,7 +4,9 @@ pub mod frame;
 
 use crate::{
     compiler::code::{self, Bytecode, Instructions},
-    obj::{CompFunc, HashKey, HashPair, Object, ARRAY_OBJ, HASH_OBJ, NUMBER_OBJ, STRING_OBJ},
+    obj::{
+        Closure, HashKey, HashPair, Object, ARRAY_OBJ, HASH_OBJ, NUMBER_OBJ, STRING_OBJ,
+    },
     token::NumberToken,
 };
 
@@ -45,8 +47,9 @@ pub struct Vm {
 
 impl Vm {
     pub fn new(bc: Bytecode) -> Self {
-        let main_func = CompFunc::new(bc.instructions);
-        let main_frame = Frame::new(main_func);
+        //        let main_func = CompFunc::new(bc.instructions);
+        let main_cl = Closure::new(bc.instructions);
+        let main_frame = Frame::new(main_cl, 0);
         let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
         frames[0] = main_frame;
         Self {
@@ -194,30 +197,106 @@ impl Vm {
                     let left = self.pop();
                     self.exe_index_expr(left, index)
                 }
-                code::Opcode::OpCall => {
-                    let stack_object = &self.stack[self.sp - 1];
-                    let Object::Compfunc(cf) = stack_object else{
-                        panic!("stack object is not compiled function")
-                    } ;
-                    let frm = Frame::new(cf.clone());
-                    self.push_frame(frm)
-                }
                 code::Opcode::OpReturnValue => {
                     let rvalue = self.pop();
-                    self.pop_frame();
-                    self.pop();
+                    let frm = self.pop_frame();
+                    //self.pop();
+                    self.sp = frm.bp as usize - 1;
                     self.push(&rvalue)
                 }
                 code::Opcode::OpReturn => {
-                    self.pop_frame();
-                    self.pop();
+                    let frm = self.pop_frame();
+                    self.sp = frm.bp as usize - 1;
+                    //self.pop();
                     self.push(&NULL);
+                }
+                code::Opcode::OpSetLocal => {
+                    let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
+                    self.adv_ip(1);
+                    let frm = self.current_frame().bp;
+                    self.stack[(frm as usize) + (local_index as usize)] = self.pop()
+                }
+                code::Opcode::OpGetLocal => {
+                    let local_index =
+                        code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec()) as usize;
+                    self.adv_ip(1);
+                    let frm_bp = self.current_frame().bp as usize;
+                    let stack_obj = self.stack[frm_bp + local_index].clone();
+                    self.push(&stack_obj);
+                }
+                code::Opcode::OpCall => {
+                    let num_args = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
+                    self.adv_ip(1);
+                    self.call_func(num_args as usize);
+                }
+                code::Opcode::OpClosure => {
+                    let const_index = code::Instructions::read_uint16(ins.ins.clone(), ip + 1);
+                    let num_free = code::Instructions::read_u8(&ins.ins[ip + 3..].to_vec());
+
+                    self.adv_ip(3);
+                    self.push_closure(const_index as usize, num_free as usize);
+                }
+                code::Opcode::OpGetFree => {
+                    let f_index = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
+                    self.adv_ip(1);
+                    let ccl = &self.current_frame().cl.clone();
+                    self.push(&ccl.frees[f_index as usize])
+                }
+
+                code::Opcode::OpCurrentClosure => {
+                    let ccl = self.current_frame().cl.clone();
+
+                    self.push(&Object::Closure(ccl));
                 }
 
                 _ => {}
             }
             //ip += 1;
         }
+    }
+
+    fn push_closure(&mut self, index: usize, num_free: usize) {
+        let obj = &self.constants[index];
+        let Object::Compfunc(cf) = obj else{
+            panic!("not fun");
+        };
+        let mut fr: Vec<Rc<Object>> = vec![NULL.into(); num_free];
+        let mut i = 0;
+        while i < num_free {
+            fr[i] = self.stack[self.sp - num_free + i].clone().into();
+            i += 1;
+        }
+
+        self.sp -= num_free;
+
+        let cls = &Object::Closure(Closure {
+            fun: cf.clone(),
+            frees: fr,
+        });
+        self.push(cls);
+    }
+
+    fn call_func(&mut self, num_args: usize) {
+        let stack_object = &self.stack[self.sp - 1 - num_args].clone();
+        let Object::Closure(cf) = stack_object else{
+                        panic!("stack object is not compiled function")
+                    } ;
+        self.call_closure(cf.clone(), num_args);
+    }
+
+    fn call_closure(&mut self, cal: Closure, num_args: usize) {
+        if cal.fun.num_params != num_args {
+            panic!(
+                "arg number and params number is not same| W=>{} G={}",
+                cal.fun.num_params, num_args
+            );
+        }
+
+        let frame = Frame::new(cal.clone(), (self.sp - num_args) as i64);
+        let fbp = frame.bp as usize;
+        self.push_frame(frame);
+
+        self.sp = fbp + cal.fun.num_locals;
     }
 
     fn exe_index_expr(&mut self, left: Object, index: Object) {
@@ -428,6 +507,7 @@ impl Vm {
         } else {
             None
         };
+        println!("L->{:?}|R->{:?}" , lval.clone(),rval.clone());
 
         if is_float {
             let lfv = lval.unwrap().get_as_f64();

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    ast::{self, Identifier, Program, Stmt},
+    ast::{self, Expr, Identifier, Program, Stmt},
     lexer::Lexer,
     token::{self, Token, TokenType},
 };
@@ -168,7 +168,15 @@ impl<'lx> Parser<'lx> {
             self.next_token();
         }
 
-        let val = self.parse_expr(P_LOWEST);
+        let mut val = self.parse_expr(P_LOWEST);
+        let mut binding = val.as_ref().clone();
+        let val2 = binding.get_fn();
+
+        if let Some(f) = val2 {
+            f.name = id.name.clone();
+
+            val = Rc::new(Expr::FuncExpr(f.clone()))
+        }
 
         if self.is_peektok(&TokenType::Semicolon) {
             self.next_token();
@@ -478,11 +486,12 @@ impl<'lx> Parser<'lx> {
         let p = self.parse_func_params();
         let bs = self.parse_block_stms(&TokenType::End);
 
-        Rc::new(ast::Expr::FuncExpr {
+        Rc::new(ast::Expr::FuncExpr(ast::FuncExpr {
+            name: String::from(""),
             token: ct,
             params: p,
             body: bs,
-        })
+        }))
     }
 
     fn parse_func_params(&mut self) -> Rc<Vec<ast::Identifier>> {
