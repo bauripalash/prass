@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap},
+    collections::{hash_map::DefaultHasher, HashMap},
     fmt::Display,
     hash::{Hash, Hasher},
     rc::Rc,
@@ -29,7 +29,7 @@ pub const SHOW_OBJ: &str = "show";
 pub const COMPILED_FUNC_OBJ: &str = "compiled_func";
 pub const CLOSURE_OBJ: &str = "closure";
 
-#[derive(Debug, Clone, PartialOrd, Ord)]
+#[derive(Debug, Clone)]
 pub enum Object {
     Number {
         token: Option<Rc<Token>>,
@@ -76,7 +76,7 @@ pub enum Object {
     },
     Hash {
         token: Option<Rc<Token>>,
-        pairs: BTreeMap<Rc<HashKey>, Rc<HashPair>>,
+        pairs: HashMap<Rc<HashKey>, Rc<HashPair>>,
     },
 
     Compfunc(CompFunc),
@@ -84,7 +84,34 @@ pub enum Object {
     Closure(Closure),
 }
 
-#[derive(Debug, Default , Clone, PartialEq, Eq, PartialOrd, Ord)]
+impl Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut result = String::new();
+        match self {
+            Self::Number { token: _, value } => result.push_str(&value.to_string()),
+            Self::String { token: _, value } => result.push_str(&value),
+            Self::Bool { token: _, value } => result.push_str(&value.to_string()),
+            Self::Array { token: _, value } => {
+                for item in value.iter() {
+                    result.push_str(&(item.to_string() + " "))
+                }
+            }
+            Self::Null => result.push_str("null"),
+            Self::Hash { token: _, pairs } => {
+                //println!("{:?}" , pairs);
+                //for p in pairs.values(){
+                for (_, v) in pairs.iter() {
+                    result.push_str(format!("{}, ", v).as_str())
+                    //result.push_str(format!("{}:{},", p.key , p.value).as_str())
+                }
+            }
+            _ => {}
+        }
+        write!(f, "{result}")
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Closure {
     pub fun: CompFunc,
     pub frees: Vec<Rc<Object>>,
@@ -102,16 +129,6 @@ impl Closure {
         Self { fun, frees: vec![] }
     }
 }
-
-/*impl Default for Closure {
-    fn default() -> Self {
-        Self {
-            fun: CompFunc::default(),
-            frees: vec![],
-        }
-    }
-}
-*/
 
 impl Display for Closure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -150,7 +167,7 @@ impl CompFunc {
         }
     }
 }
-
+/*
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -160,16 +177,23 @@ impl Display for Object {
         }
     }
 }
+*/
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct HashKey {
     pub key: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HashPair {
     pub key: Rc<Object>,
     pub value: Rc<Object>,
+}
+
+impl Display for HashPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.key, self.value)
+    }
 }
 
 impl Object {

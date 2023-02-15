@@ -70,7 +70,11 @@ impl<'lx> Parser<'lx> {
             })
         }
         self.curtok = self.peektok.clone();
-        self.peektok = self.lexer.next_token();
+        if let Ok(nt) = self.lexer.next_token() {
+            self.peektok = nt;
+        } else {
+            panic!("lexer error->")
+        }
         self.curtok.clone()
     }
 

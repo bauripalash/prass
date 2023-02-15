@@ -1,12 +1,10 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 pub mod frame;
 
 use crate::{
     compiler::code::{self, Bytecode, Instructions},
-    obj::{
-        Closure, HashKey, HashPair, Object, ARRAY_OBJ, HASH_OBJ, NUMBER_OBJ, STRING_OBJ,
-    },
+    obj::{Closure, HashKey, HashPair, Object, ARRAY_OBJ, HASH_OBJ, NUMBER_OBJ, STRING_OBJ},
     token::NumberToken,
 };
 
@@ -37,7 +35,6 @@ const fn bool_native_to_obj(b: bool) -> Object {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vm {
     constants: Vec<Object>,
-    //pub instructions: code::Instructions,
     stack: Vec<Object>,
     sp: usize,
     globals: Vec<Object>,
@@ -47,7 +44,6 @@ pub struct Vm {
 
 impl Vm {
     pub fn new(bc: Bytecode) -> Self {
-        //        let main_func = CompFunc::new(bc.instructions);
         let main_cl = Closure::new(bc.instructions);
         let main_frame = Frame::new(main_cl, 0);
         let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
@@ -248,6 +244,27 @@ impl Vm {
 
                     self.push(&Object::Closure(ccl));
                 }
+                code::Opcode::OpShow => {
+                    let num_items =
+                        code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec()) as usize;
+
+                    let mut i = 0;
+
+                    //                    let mut objs: Vec<Object> = Vec::new();
+                    let mut result: Vec<String> = vec![];
+
+                    while i < num_items {
+                        result.push(self.pop().to_string());
+                        //result.push(' ');
+                        //objs.push(self.pop());
+                        i += 1
+                    }
+                    result.reverse();
+                    //let mut result = String::new();
+
+                    println!("{}", result.join(" "));
+                    self.adv_ip(2);
+                }
 
                 _ => {}
             }
@@ -343,7 +360,7 @@ impl Vm {
     }
 
     fn build_hash(&mut self, start: usize, end: usize) -> Object {
-        let mut hp: BTreeMap<Rc<HashKey>, Rc<HashPair>> = BTreeMap::new();
+        let mut hp: HashMap<Rc<HashKey>, Rc<HashPair>> = HashMap::new();
 
         let mut i = start;
 
@@ -356,7 +373,7 @@ impl Vm {
 
             let hk = Rc::new(HashKey { key: k.get_hash() });
             hp.insert(hk, Rc::new(HashPair { key: k, value: v }));
-            i += 1;
+            i += 2;
         }
 
         Object::Hash {
@@ -507,7 +524,7 @@ impl Vm {
         } else {
             None
         };
-        println!("L->{:?}|R->{:?}" , lval.clone(),rval.clone());
+        //println!("L->{:?}|R->{:?}" , lval.clone(),rval.clone());
 
         if is_float {
             let lfv = lval.unwrap().get_as_f64();

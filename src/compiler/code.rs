@@ -40,6 +40,7 @@ pub enum Opcode {
     OpCurrentClosure,
     OpDummy,
     OpMod,
+    OpShow,
 }
 
 #[allow(dead_code)]
@@ -101,6 +102,7 @@ pub fn get_def(op: &Opcode) -> OpDef {
         Opcode::OpCurrentClosure => OpDef::new("OpCurrentClosure", vec![]),
         Opcode::OpDummy => OpDef::new("OpDummy", vec![]),
         Opcode::OpMod => OpDef::new("OpMod", vec![]),
+        Opcode::OpShow => OpDef::new("OpShow", vec![1]),
     }
 }
 

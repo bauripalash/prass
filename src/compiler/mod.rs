@@ -68,13 +68,9 @@ impl Compiler {
         };
         Self {
             symtab: symtab::Table::new(),
-            //instructions: code::Instructions::new(),
             constants: Vec::new(),
-
             scopes: vec![mainscope],
             scope_index: 0,
-            //            last_ins: EmittedIns::new(),
-            //          prev_ins: EmittedIns::new(),
         }
     }
 
@@ -95,8 +91,6 @@ impl Compiler {
     }
 
     pub fn compile_stmt(&mut self, stmt: &ast::Stmt) {
-        //println!("{stmt}");
-
         match stmt {
             ast::Stmt::LetStmt {
                 token: _,
@@ -104,7 +98,6 @@ impl Compiler {
                 value,
             } => {
                 let sm = self.symtab.define(name.name.clone());
-                //println!("+++++name->{}={:?}", name.name , sm);
                 self.compiler_expr(value);
 
                 match sm.scope {
@@ -116,8 +109,6 @@ impl Compiler {
                     }
                     _ => {}
                 };
-
-                //self.emit(Opcode::OpPop, None);
             }
             ast::Stmt::ExprStmt { token: _, expr } => {
                 self.compiler_expr(expr);
@@ -132,8 +123,13 @@ impl Compiler {
                 self.compiler_expr(rval);
                 self.emit(Opcode::OpReturnValue, None);
             }
-
-            _ => {}
+            ast::Stmt::ShowStmt { token: _, value } => {
+                //println!("{:?}" , value);
+                for v in value.iter() {
+                    self.compiler_expr(&v)
+                }
+                self.emit(Opcode::OpShow, Some(&vec![value.len()]));
+            } // _ => {}
         }
     }
 
@@ -299,9 +295,7 @@ impl Compiler {
         match sym.scope {
             symtab::Scope::Global => self.emit(Opcode::OpGetGlobal, Some(&vec![sym.index])),
             symtab::Scope::Local => self.emit(Opcode::OpGetLocal, Some(&vec![sym.index])),
-
             symtab::Scope::Free => self.emit(Opcode::OpGetFree, Some(&vec![sym.index])),
-
             symtab::Scope::Func => self.emit(Opcode::OpCurrentClosure, None),
         };
     }
@@ -327,7 +321,6 @@ impl Compiler {
         let mut i = 0;
         while i < new_ins.len() {
             self.current_ins_mut().ins[pos + i] = new_ins[i];
-            //            self.instructions.ins[pos + i] = new_ins[i];
             i += 1;
         }
     }

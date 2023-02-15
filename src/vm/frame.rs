@@ -1,11 +1,8 @@
 use std::fmt::Display;
 
-use crate::{
-    compiler::code,
-    obj::Closure,
-};
+use crate::{compiler::code, obj::Closure};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Frame {
     pub cl: Closure,
     pub ip: i64,

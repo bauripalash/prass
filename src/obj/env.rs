@@ -1,15 +1,12 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    rc::Rc,
-};
+use std::{collections::HashMap, rc::Rc};
 
 use super::Object;
 
 static DEFKEY: &str = "__default";
 
-#[derive(Debug, Clone, PartialOrd, Ord)]
+#[derive(Debug, Clone)]
 pub struct Env {
-    env: BTreeMap<String, Object>,
+    env: HashMap<String, Object>,
     outer: Option<Rc<Env>>,
 }
 
@@ -40,9 +37,9 @@ impl Default for Env {
     }
 }
 impl Env {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            env: BTreeMap::new(),
+            env: HashMap::new(),
             outer: None,
         }
     }

@@ -19,6 +19,11 @@ pub struct Lexer<'a> {
     ch: char,
 }
 
+pub struct LexerError {
+    pub token: Option<Token>,
+    pub msg: String,
+}
+
 impl<'a> Lexer<'a> {
     pub fn new(inp: &'a str) -> Self {
         let mut lexer = Lexer {
@@ -142,7 +147,7 @@ impl<'a> Lexer<'a> {
         self.skip_whitespaces();
     }
 
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Result<Token, LexerError> {
         self.skip_whitespaces();
         if self.ch == '#' {
             self.skip_comment();
@@ -330,9 +335,12 @@ impl<'a> Lexer<'a> {
                 if self.ch.is_ascii_digit() || is_bn_num(self.ch) {
                     let raw_number = self.read_number();
                     if let Some(n) = raw_number {
-                        return n;
+                        return Ok(n);
                     } else {
-                        panic!("invalid number");
+                        return Err(LexerError {
+                            token: None,
+                            msg: format!("Invalid number literal -> {:?}", raw_number),
+                        });
                     }
                 } else if (self.ch.is_ascii_alphabetic() || is_bn_char(self.ch))
                     && !is_bn_num(self.ch)
@@ -342,10 +350,10 @@ impl<'a> Lexer<'a> {
                     let id = self.read_identifier();
 
                     if let Some(kw) = lookup_ident(id.as_str()) {
-                        return Token::new(kw, id, colno, lineno);
+                        return Ok(Token::new(kw, id, colno, lineno));
                     }
 
-                    return Token::new(TokenType::Ident, id, colno, lineno);
+                    return Ok(Token::new(TokenType::Ident, id, colno, lineno));
                 } else {
                     result = Token::new(
                         TokenType::Illegal,
@@ -358,6 +366,6 @@ impl<'a> Lexer<'a> {
             }
         };
         self.read_char();
-        result
+        Ok(result)
     }
 }
