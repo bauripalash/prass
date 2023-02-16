@@ -23,7 +23,7 @@ pub struct EmittedIns {
 impl EmittedIns {
     pub const fn new() -> Self {
         Self {
-            opcode: code::Opcode::OpDummy,
+            opcode: code::Opcode::Dummy,
             pos: 0,
         }
     }
@@ -102,17 +102,17 @@ impl Compiler {
 
                 match sm.scope {
                     symtab::Scope::Global => {
-                        self.emit(Opcode::OpSetGlobal, Some(&vec![sm.index]));
+                        self.emit(Opcode::SetGlobal, Some(&vec![sm.index]));
                     }
                     symtab::Scope::Local => {
-                        self.emit(Opcode::OpSetLocal, Some(&vec![sm.index]));
+                        self.emit(Opcode::SetLocal, Some(&vec![sm.index]));
                     }
                     _ => {}
                 };
             }
             ast::Stmt::ExprStmt { token: _, expr } => {
                 self.compiler_expr(expr);
-                self.emit(Opcode::OpPop, None);
+                self.emit(Opcode::Pop, None);
             }
             ast::Stmt::BlockStmt { token: _, stmts } => {
                 for s in stmts {
@@ -121,14 +121,14 @@ impl Compiler {
             }
             ast::Stmt::ReturnStmt { token: _, rval } => {
                 self.compiler_expr(rval);
-                self.emit(Opcode::OpReturnValue, None);
+                self.emit(Opcode::ReturnValue, None);
             }
             ast::Stmt::ShowStmt { token: _, value } => {
                 //println!("{:?}" , value);
                 for v in value.iter() {
                     self.compiler_expr(&v)
                 }
-                self.emit(Opcode::OpShow, Some(&vec![value.len()]));
+                self.emit(Opcode::Show, Some(&vec![value.len()]));
             } // _ => {}
         }
     }
@@ -151,7 +151,7 @@ impl Compiler {
                 };
                 let con = self.add_const(sl);
                 //println!("{con}");
-                self.emit(Opcode::OpConst, Some(&vec![con]));
+                self.emit(Opcode::Const, Some(&vec![con]));
             }
             ast::Expr::NumExpr {
                 token,
@@ -163,19 +163,19 @@ impl Compiler {
                     value: value.clone(),
                 };
                 let con = self.add_const(num);
-                self.emit(Opcode::OpConst, Some(&vec![con]));
+                self.emit(Opcode::Const, Some(&vec![con]));
             }
             ast::Expr::ArrayExpr { token: _, elems } => {
                 for el in elems {
                     self.compiler_expr(el)
                 }
-                self.emit(Opcode::OpArray, Some(&vec![elems.len()]));
+                self.emit(Opcode::Array, Some(&vec![elems.len()]));
             }
             ast::Expr::BoolExpr { token: _, value } => {
                 if *value {
-                    self.emit(Opcode::OpTrue, None);
+                    self.emit(Opcode::True, None);
                 } else {
-                    self.emit(Opcode::OpFalse, None);
+                    self.emit(Opcode::False, None);
                 }
             }
             ast::Expr::InfixExpr {
@@ -197,24 +197,24 @@ impl Compiler {
             } => {
                 self.compiler_expr(cond);
 
-                let jntpos = self.emit(Opcode::OpJumpNotTruthy, Some(&vec![9999]));
+                let jntpos = self.emit(Opcode::JumpNotTruthy, Some(&vec![9999]));
                 self.compile_stmt(trueblock);
 
-                if self.is_last_ins(&Opcode::OpPop) {
+                if self.is_last_ins(&Opcode::Pop) {
                     self.remove_last_pop();
                 }
 
-                let jmppos = self.emit(Opcode::OpJump, Some(&vec![9999]));
+                let jmppos = self.emit(Opcode::Jump, Some(&vec![9999]));
                 let after_tb_pos = self.current_ins().ins.len();
                 self.change_operand(jntpos, after_tb_pos);
 
                 if let Some(eb) = elseblock {
                     self.compile_stmt(eb);
-                    if self.is_last_ins(&Opcode::OpPop) {
+                    if self.is_last_ins(&Opcode::Pop) {
                         self.remove_last_pop();
                     }
                 } else {
-                    self.emit(Opcode::OpNull, None);
+                    self.emit(Opcode::Null, None);
                 }
 
                 let after_eb_pos = self.current_ins().ins.len();
@@ -228,7 +228,7 @@ impl Compiler {
                     self.compiler_expr(k);
                     self.compiler_expr(v)
                 }
-                self.emit(Opcode::OpHash, Some(&vec![p.len() * 2]));
+                self.emit(Opcode::Hash, Some(&vec![p.len() * 2]));
             }
             ast::Expr::IndexExpr {
                 token: _,
@@ -237,7 +237,7 @@ impl Compiler {
             } => {
                 self.compiler_expr(left);
                 self.compiler_expr(index);
-                self.emit(Opcode::OpIndex, None);
+                self.emit(Opcode::Index, None);
             }
 
             ast::Expr::FuncExpr(f) => {
@@ -251,12 +251,12 @@ impl Compiler {
                     self.symtab.define(p.name.clone());
                 }
                 self.compile_stmt(&f.body);
-                if self.is_last_ins(&Opcode::OpPop) {
+                if self.is_last_ins(&Opcode::Pop) {
                     self.replace_last_pop_with_return()
                 }
 
-                if !self.is_last_ins(&Opcode::OpReturnValue) {
-                    self.emit(Opcode::OpReturn, None);
+                if !self.is_last_ins(&Opcode::ReturnValue) {
+                    self.emit(Opcode::Return, None);
                 }
                 let free_syms = self.symtab.free_syms.clone();
                 let num_locals = self.symtab.numdef;
@@ -272,7 +272,7 @@ impl Compiler {
                     num_params: fun_params.len(),
                 });
                 let con = self.add_const(cmp_fn);
-                self.emit(Opcode::OpClosure, Some(&vec![con, free_syms.len()]));
+                self.emit(Opcode::Closure, Some(&vec![con, free_syms.len()]));
             }
 
             ast::Expr::CallExpr {
@@ -284,7 +284,7 @@ impl Compiler {
                 for arg in args {
                     self.compiler_expr(arg)
                 }
-                self.emit(Opcode::OpCall, Some(&vec![args.len()]));
+                self.emit(Opcode::Call, Some(&vec![args.len()]));
             }
 
             _ => {}
@@ -293,26 +293,26 @@ impl Compiler {
 
     fn load_symbol(&mut self, sym: &Symbol) {
         match sym.scope {
-            symtab::Scope::Global => self.emit(Opcode::OpGetGlobal, Some(&vec![sym.index])),
-            symtab::Scope::Local => self.emit(Opcode::OpGetLocal, Some(&vec![sym.index])),
-            symtab::Scope::Free => self.emit(Opcode::OpGetFree, Some(&vec![sym.index])),
-            symtab::Scope::Func => self.emit(Opcode::OpCurrentClosure, None),
+            symtab::Scope::Global => self.emit(Opcode::GetGlobal, Some(&vec![sym.index])),
+            symtab::Scope::Local => self.emit(Opcode::GetLocal, Some(&vec![sym.index])),
+            symtab::Scope::Free => self.emit(Opcode::GetFree, Some(&vec![sym.index])),
+            symtab::Scope::Func => self.emit(Opcode::CurrentClosure, None),
         };
     }
 
     fn replace_last_pop_with_return(&mut self) {
         let lastpos = self.scopes[self.scope_index].last_ins.pos;
 
-        self.replace_ins(lastpos, code::make_ins(Opcode::OpReturnValue, &[]));
-        self.scopes[self.scope_index].last_ins.opcode = Opcode::OpReturnValue;
+        self.replace_ins(lastpos, code::make_ins(Opcode::ReturnValue, &[]));
+        self.scopes[self.scope_index].last_ins.opcode = Opcode::ReturnValue;
     }
 
     pub fn compiler_prefix_expr(&mut self, right: &ast::Expr, op: &Token) {
         self.compiler_expr(right);
 
         match op.ttype {
-            TokenType::BANG => self.emit(Opcode::OpBang, None),
-            TokenType::Minus => self.emit(Opcode::OpMinus, None),
+            TokenType::BANG => self.emit(Opcode::Bang, None),
+            TokenType::Minus => self.emit(Opcode::Minus, None),
             _ => panic!("prefix unknonw operator -> {} ", op.literal),
         };
     }
@@ -335,14 +335,14 @@ impl Compiler {
         self.compiler_expr(left);
         self.compiler_expr(right);
         match op.ttype {
-            TokenType::Plus => self.emit(Opcode::OpAdd, None),
-            TokenType::Minus => self.emit(Opcode::OpSub, None),
-            TokenType::Mul => self.emit(Opcode::OpMul, None),
-            TokenType::Div => self.emit(Opcode::OpDiv, None),
-            TokenType::MOD => self.emit(Opcode::OpMod, None),
-            TokenType::GT => self.emit(Opcode::OpGT, None),
-            TokenType::EqEq => self.emit(Opcode::OpEqual, None),
-            TokenType::NotEq => self.emit(Opcode::OpNotEqual, None),
+            TokenType::Plus => self.emit(Opcode::Add, None),
+            TokenType::Minus => self.emit(Opcode::Sub, None),
+            TokenType::Mul => self.emit(Opcode::Mul, None),
+            TokenType::Div => self.emit(Opcode::Div, None),
+            TokenType::MOD => self.emit(Opcode::Mod, None),
+            TokenType::GT => self.emit(Opcode::GT, None),
+            TokenType::EqEq => self.emit(Opcode::Equal, None),
+            TokenType::NotEq => self.emit(Opcode::NotEqual, None),
             _ => panic!("unknown operator -> {}", op.literal),
         };
     }

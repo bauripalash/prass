@@ -1,3 +1,5 @@
+use std::process::exit;
+
 use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
 
 fn main() {
@@ -49,15 +51,17 @@ fn main() {
     //   let src = "ekti kaj() 1; 2 sesh";
     //let src = "jodi (true) tahole 1 nahole sesh";
 
-    let a = Lexer::new("dekhao({1:2,3&100})");
+    let a = Lexer::new("ekti kaj(a) ");
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
-
+    println!("{}", parsed_program);
     if !parser.errors.is_empty() {
-        for err in &parser.errors {
-            println!("Err => {}", err.msg);
-        }
-        panic!("please fix parser errors");
+        //for err in &parser.errors {
+        //    println!("Err => {}", err.msg);
+        //}
+        parser.print_errorrs();
+        //panic!("please fix parser errors");
+        exit(1);
     }
 
     let mut cm = Compiler::new();
@@ -69,5 +73,5 @@ fn main() {
     //}
     let mut v = Vm::new(c);
     v.run();
-    //println!("result->{}", v.last_pop());
+    println!("result->{}", v.last_pop());
 }

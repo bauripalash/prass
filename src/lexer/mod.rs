@@ -1,5 +1,6 @@
 use crate::{
     bn::{is_bn_char, is_bn_num, parse_bn_num},
+    errorhelper::ErrorHelper,
     token::{lookup_ident, Token, TokenType},
 };
 
@@ -17,6 +18,7 @@ pub struct Lexer<'a> {
     lineno: usize,
     colno: usize,
     ch: char,
+    pub eh: ErrorHelper,
 }
 
 pub struct LexerError {
@@ -35,6 +37,7 @@ impl<'a> Lexer<'a> {
             colno: 0,
             ..Default::default()
         };
+        lexer.eh = ErrorHelper::new(&inp.to_string());
         lexer.read_char();
         lexer
     }

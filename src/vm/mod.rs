@@ -107,7 +107,7 @@ impl Vm {
             //println!("{:?}", op);
 
             match op {
-                code::Opcode::OpConst => {
+                code::Opcode::Const => {
                     let op_ins = ins.ins;
                     let con_index = Instructions::read_uint16(op_ins.to_vec(), ip + 1) as usize;
                     let con_obj = &self.constants[con_index].clone();
@@ -117,43 +117,43 @@ impl Vm {
                     //ip += 2;
                     self.adv_ip(2);
                 }
-                code::Opcode::OpPop => {
+                code::Opcode::Pop => {
                     self.pop();
                 }
-                code::Opcode::OpAdd
-                | code::Opcode::OpSub
-                | code::Opcode::OpMul
-                | code::Opcode::OpDiv
-                | code::Opcode::OpMod => self.exe_binary_op(op),
+                code::Opcode::Add
+                | code::Opcode::Sub
+                | code::Opcode::Mul
+                | code::Opcode::Div
+                | code::Opcode::Mod => self.exe_binary_op(op),
 
-                code::Opcode::OpTrue => self.push(&TRUE),
-                code::Opcode::OpFalse => self.push(&FALSE),
-                code::Opcode::OpEqual | code::Opcode::OpNotEqual | code::Opcode::OpGT => {
+                code::Opcode::True => self.push(&TRUE),
+                code::Opcode::False => self.push(&FALSE),
+                code::Opcode::Equal | code::Opcode::NotEqual | code::Opcode::GT => {
                     self.exe_comparison(op)
                 }
-                code::Opcode::OpBang => self.exe_bang_op(),
-                code::Opcode::OpMinus => self.exe_pref_minux(),
-                code::Opcode::OpNull => self.push(&NULL),
-                code::Opcode::OpSetGlobal => {
+                code::Opcode::Bang => self.exe_bang_op(),
+                code::Opcode::Minus => self.exe_pref_minux(),
+                code::Opcode::Null => self.push(&NULL),
+                code::Opcode::SetGlobal => {
                     let gi = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
                     //ip += 2;
                     self.adv_ip(2);
                     self.globals[gi] = self.pop()
                 }
-                code::Opcode::OpGetGlobal => {
+                code::Opcode::GetGlobal => {
                     let gi = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
                     //ip += 2;
                     self.adv_ip(2);
 
                     self.push(&self.globals[gi].clone())
                 }
-                code::Opcode::OpJump => {
+                code::Opcode::Jump => {
                     let pos = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1);
                     //ip = (pos - 1) as usize
                     self.set_ip((pos - 1) as usize)
                 }
 
-                code::Opcode::OpJumpNotTruthy => {
+                code::Opcode::JumpNotTruthy => {
                     let pos = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
 
                     //ip += 2;
@@ -166,7 +166,7 @@ impl Vm {
                         self.set_ip(pos - 1)
                     }
                 }
-                code::Opcode::OpArray => {
+                code::Opcode::Array => {
                     let num_of_elms =
                         code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
                     //ip += 2;
@@ -177,7 +177,7 @@ impl Vm {
                     self.push(&arr);
                 }
 
-                code::Opcode::OpHash => {
+                code::Opcode::Hash => {
                     let num_of_elms =
                         code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
                     //ip += 2;
@@ -188,31 +188,31 @@ impl Vm {
 
                     self.push(&hash)
                 }
-                code::Opcode::OpIndex => {
+                code::Opcode::Index => {
                     let index = self.pop();
                     let left = self.pop();
                     self.exe_index_expr(left, index)
                 }
-                code::Opcode::OpReturnValue => {
+                code::Opcode::ReturnValue => {
                     let rvalue = self.pop();
                     let frm = self.pop_frame();
                     //self.pop();
                     self.sp = frm.bp as usize - 1;
                     self.push(&rvalue)
                 }
-                code::Opcode::OpReturn => {
+                code::Opcode::Return => {
                     let frm = self.pop_frame();
                     self.sp = frm.bp as usize - 1;
                     //self.pop();
                     self.push(&NULL);
                 }
-                code::Opcode::OpSetLocal => {
+                code::Opcode::SetLocal => {
                     let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
                     self.adv_ip(1);
                     let frm = self.current_frame().bp;
                     self.stack[(frm as usize) + (local_index as usize)] = self.pop()
                 }
-                code::Opcode::OpGetLocal => {
+                code::Opcode::GetLocal => {
                     let local_index =
                         code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec()) as usize;
                     self.adv_ip(1);
@@ -220,31 +220,31 @@ impl Vm {
                     let stack_obj = self.stack[frm_bp + local_index].clone();
                     self.push(&stack_obj);
                 }
-                code::Opcode::OpCall => {
+                code::Opcode::Call => {
                     let num_args = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
                     self.adv_ip(1);
                     self.call_func(num_args as usize);
                 }
-                code::Opcode::OpClosure => {
+                code::Opcode::Closure => {
                     let const_index = code::Instructions::read_uint16(ins.ins.clone(), ip + 1);
                     let num_free = code::Instructions::read_u8(&ins.ins[ip + 3..].to_vec());
 
                     self.adv_ip(3);
                     self.push_closure(const_index as usize, num_free as usize);
                 }
-                code::Opcode::OpGetFree => {
+                code::Opcode::GetFree => {
                     let f_index = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
                     self.adv_ip(1);
                     let ccl = &self.current_frame().cl.clone();
                     self.push(&ccl.frees[f_index as usize])
                 }
 
-                code::Opcode::OpCurrentClosure => {
+                code::Opcode::CurrentClosure => {
                     let ccl = self.current_frame().cl.clone();
 
                     self.push(&Object::Closure(ccl));
                 }
-                code::Opcode::OpShow => {
+                code::Opcode::Show => {
                     let num_items =
                         code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec()) as usize;
 
@@ -449,8 +449,8 @@ impl Vm {
         }
 
         match op {
-            code::Opcode::OpEqual => self.push(&bool_native_to_obj(right == left)),
-            code::Opcode::OpNotEqual => self.push(&bool_native_to_obj(left != right)),
+            code::Opcode::Equal => self.push(&bool_native_to_obj(right == left)),
+            code::Opcode::NotEqual => self.push(&bool_native_to_obj(left != right)),
             _ => {
                 panic!("unknonwn operator -> {op:?}")
             }
@@ -471,9 +471,9 @@ impl Vm {
         };
 
         match op {
-            code::Opcode::OpEqual => self.push(&bool_native_to_obj(lval == rval)),
-            code::Opcode::OpGT => self.push(&bool_native_to_obj(lval > rval)),
-            code::Opcode::OpNotEqual => self.push(&bool_native_to_obj(lval != rval)),
+            code::Opcode::Equal => self.push(&bool_native_to_obj(lval == rval)),
+            code::Opcode::GT => self.push(&bool_native_to_obj(lval > rval)),
+            code::Opcode::NotEqual => self.push(&bool_native_to_obj(lval != rval)),
 
             _ => panic!("unknown comparison"),
         }
@@ -490,7 +490,7 @@ impl Vm {
     }
 
     fn exe_binary_op_str(&mut self, op: code::Opcode, left: Object, right: Object) {
-        if op != code::Opcode::OpAdd {
+        if op != code::Opcode::Add {
             panic!("unknown string operator : {op:?}")
         }
         let lval: Option<String> = if let Object::String { token: _, value } = left {
@@ -530,11 +530,11 @@ impl Vm {
             let lfv = lval.unwrap().get_as_f64();
             let rfv = rval.unwrap().get_as_f64();
             let value = NumberToken::from(match op {
-                code::Opcode::OpAdd => lfv + rfv,
-                code::Opcode::OpSub => lfv - rfv,
-                code::Opcode::OpMul => lfv * rfv,
-                code::Opcode::OpDiv => lfv / rfv,
-                code::Opcode::OpMod => lfv % rfv,
+                code::Opcode::Add => lfv + rfv,
+                code::Opcode::Sub => lfv - rfv,
+                code::Opcode::Mul => lfv * rfv,
+                code::Opcode::Div => lfv / rfv,
+                code::Opcode::Mod => lfv % rfv,
                 _ => 0.0,
             });
             self.push(&Object::Number { token: None, value });
@@ -542,11 +542,11 @@ impl Vm {
             let lfv = lval.unwrap().get_as_i64();
             let rfv = rval.unwrap().get_as_i64();
             let value = NumberToken::from(match op {
-                code::Opcode::OpAdd => lfv + rfv,
-                code::Opcode::OpSub => lfv - rfv,
-                code::Opcode::OpMul => lfv * rfv,
-                code::Opcode::OpDiv => lfv / rfv,
-                code::Opcode::OpMod => lfv % rfv,
+                code::Opcode::Add => lfv + rfv,
+                code::Opcode::Sub => lfv - rfv,
+                code::Opcode::Mul => lfv * rfv,
+                code::Opcode::Div => lfv / rfv,
+                code::Opcode::Mod => lfv % rfv,
                 _ => 0,
             });
             self.push(&Object::Number { token: None, value });

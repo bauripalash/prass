@@ -1,7 +1,8 @@
-use std::rc::Rc;
+use std::{fmt::format, rc::Rc};
 
 use crate::{
     ast::{self, Expr, Identifier, Program, Stmt},
+    errorhelper::ErrorHelper,
     lexer::Lexer,
     token::{self, Token, TokenType},
 };
@@ -33,6 +34,18 @@ pub const fn get_precedences(tt: &TokenType) -> usize {
 #[derive(Debug)]
 pub struct Error {
     pub msg: String,
+    pub token: Option<Token>,
+    pub tokentype: Option<TokenType>,
+}
+
+impl Error {
+    pub fn new(msg: &str, token: Option<&Token>, tokentype: Option<&TokenType>) -> Self {
+        Self {
+            msg: msg.to_string(),
+            token: token.cloned(),
+            tokentype: tokentype.copied(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -63,11 +76,29 @@ impl<'lx> Parser<'lx> {
     //
     //
 
+    pub fn print_errorrs(&self) {
+        let errh = &self.lexer.eh;
+
+        for e in &self.errors {
+            if let Some(et) = &e.token {
+                println!("{}", errh.show_error(&et));
+
+                println!("{} -> {}", e.msg, et.literal);
+            } else {
+                println!("{}", e.msg);
+            }
+        }
+    }
+
     fn next_token(&mut self) -> Token {
         if self.peektok.ttype == TokenType::Illegal {
-            self.errors.push(Error {
-                msg: format!("Illegal token ->{:?}", self.peektok),
-            })
+            self.errors.push(Error::new(
+                "Illegal token",
+                Some(&self.peektok),
+                Some(&self.peektok.ttype),
+            ));
+
+            //self.next_token();
         }
         self.curtok = self.peektok.clone();
         if let Ok(nt) = self.lexer.next_token() {
@@ -88,6 +119,15 @@ impl<'lx> Parser<'lx> {
 
     const fn peek_prec(&self) -> usize {
         get_precedences(&self.peektok.ttype)
+    }
+
+    fn expect(&mut self, tok: &TokenType) -> bool {
+        if self.peek(tok) {
+            self.next_token();
+            return true;
+        } else {
+            false
+        }
     }
 
     //fn cur_prec(&self) -> usize {
@@ -113,17 +153,40 @@ impl<'lx> Parser<'lx> {
         false
     }
 
+    fn now(&mut self, tok: &TokenType) -> bool {
+        if self.is_curtok(tok) {
+            self.next_token();
+            return true;
+        } else {
+            let errormsg = format!("Expected {:?} but got {:?}", self.curtok, self.curtok.ttype);
+            self.errors.push(Error::new(
+                &errormsg,
+                Some(&self.curtok),
+                Some(&self.curtok.ttype),
+            ));
+            return false;
+        }
+    }
+
     fn peek_error(&mut self, tok: &TokenType) {
-        self.errors.push(Error {
-            msg: format!(
-                "{:?} | Expected {:?} but got {:?}",
-                self.curtok, tok, self.peektok.ttype
-            ),
-        });
+        println!("{}", self.lexer.eh.show_error(&self.peektok));
+        let errmsg = format!(
+            "{:?} | Expected {:?} but got {:?}",
+            self.curtok, tok, self.peektok.ttype
+        );
+        self.errors.push(Error::new(
+            &errmsg,
+            Some(&self.peektok),
+            Some(&self.peektok.ttype),
+        ));
     }
 
     fn got_error_jump(&mut self, msg: String) {
-        self.errors.push(Error { msg });
+        self.errors.push(Error::new(&msg, None, None));
+        self.next_token();
+    }
+    fn got_error_jump_with_err(&mut self, err: Error) {
+        self.errors.push(err);
         self.next_token();
     }
 
@@ -285,10 +348,10 @@ impl<'lx> Parser<'lx> {
             }
             TokenType::Lbrace => self.parse_hash_expr(),
             _ => {
-                //println!("self.curtok => {:?}", self.curtok);
-                self.got_error_jump(format!(
-                    "Unknown Prefix; Unexpected token {:?}",
-                    self.curtok.ttype
+                self.got_error_jump_with_err(Error::new(
+                    "Unknown Prefix; Unexpected Token",
+                    Some(&self.curtok),
+                    None,
                 ));
                 Rc::new(ast::Expr::ErrExpr)
             }
@@ -482,11 +545,25 @@ impl<'lx> Parser<'lx> {
 
     fn parse_func_expr(&mut self) -> Rc<ast::Expr> {
         let ct = self.curtok.clone();
-        self.next_token();
+        self.expect(&TokenType::Func);
 
-        if self.is_curtok(&TokenType::Func) {
-            self.next_token();
-        }
+        // Current token is One/Ekti
+        // Next token should be Func
+        //
+        // If next token is func;
+        // we advance.
+        //
+        // So now  ->
+        // [EKTI] [FUNC] [(] [a] [)]
+        //:
+        //if self.peek(&TokenType::Func) {
+        //    self.next_token();
+        //}
+        //self.next_token();
+        println!("{:?} -> {:?}", self.curtok, self.peektok);
+
+        //self.next_token();
+
         let p = self.parse_func_params();
         let bs = self.parse_block_stms(&TokenType::End);
 
