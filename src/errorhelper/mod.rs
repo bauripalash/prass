@@ -1,4 +1,21 @@
-use crate::token::Token;
+use crate::token::{Token, TokenType};
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ParserError {
+    pub msg: String,
+    pub token: Option<Token>,
+    pub tokentype: Option<TokenType>,
+}
+
+impl ParserError {
+    pub fn new(msg: &str, token: Option<&Token>, tokentype: Option<&TokenType>) -> Self {
+        Self {
+            msg: msg.to_string(),
+            token: token.cloned(),
+            tokentype: tokentype.copied(),
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct ErrorHelper {
@@ -6,9 +23,9 @@ pub struct ErrorHelper {
 }
 
 impl ErrorHelper {
-    pub fn new(source: &String) -> Self {
+    pub fn new(source: &str) -> Self {
         Self {
-            source: source.clone(),
+            source: source.to_owned(),
         }
     }
 

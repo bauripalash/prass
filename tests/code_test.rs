@@ -16,9 +16,9 @@ fn check_ins(a: Vec<Vec<u8>>, b: &str) {
 #[test]
 fn test_ins() {
     let test_cases = HashMap::from([
-        (vec![make_ins(OpAdd, &vec![])], "0000 OpAdd\n"),
+        (vec![make_ins(Add, &vec![])], "0000 OpAdd\n"),
         (
-            vec![make_ins(OpAdd, &vec![]), make_ins(OpGetLocal, &vec![1])],
+            vec![make_ins(Add, &vec![]), make_ins(GetLocal, &vec![1])],
             "0000 OpAdd\n0001 OpGetLocal 1\n",
         ),
     ]);

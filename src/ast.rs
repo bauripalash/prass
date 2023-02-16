@@ -1,6 +1,9 @@
 use std::{fmt::Display, rc::Rc};
 
-use crate::token::{NumberToken, Token};
+use crate::{
+    errorhelper::ParserError,
+    token::{NumberToken, Token},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
@@ -114,7 +117,7 @@ pub enum Expr {
         pairs: Vec<(Rc<Expr>, Rc<Expr>)>,
     },
     NullExpr,
-    ErrExpr,
+    ErrExpr(ParserError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -131,6 +134,10 @@ impl Expr {
             return Some(f);
         }
         None
+    }
+
+    pub fn is_error(&self) -> bool {
+        matches!(self, Self::ErrExpr(..))
     }
 }
 
@@ -230,7 +237,7 @@ impl Display for Expr {
                 format!("hash({hp})")
             }
 
-            Self::ErrExpr => "err()".to_string(),
+            Self::ErrExpr(e) => "err()".to_string(),
             Self::NullExpr => "null".to_string(),
         };
 

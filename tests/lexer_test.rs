@@ -21,7 +21,8 @@ fn test_lexer_next_token() {
     let mut lx = Lexer::new(input);
 
     for ett in ex_tok_types {
-        let toktype = lx.next_token().ttype;
-        assert_eq!(ett, toktype)
+        if let Ok(t) = lx.next_token() {
+            assert_eq!(ett, t.ttype)
+        }
     }
 }

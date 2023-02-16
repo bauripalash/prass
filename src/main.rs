@@ -51,7 +51,7 @@ fn main() {
     //   let src = "ekti kaj() 1; 2 sesh";
     //let src = "jodi (true) tahole 1 nahole sesh";
 
-    let a = Lexer::new("ekti kaj(a) ");
+    let a = Lexer::new("jodi (true) tahole 1 nahole 2 sesh");
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
     println!("{}", parsed_program);
