@@ -1,3 +1,4 @@
+use std::{rc::Rc, cell::RefCell};
 use crate::{
     ast,
     obj::{CompFunc, Object},
@@ -42,8 +43,8 @@ pub struct CompScope {
 
 #[derive(Debug, Clone)]
 pub struct Compiler {
-    pub symtab: symtab::Table,
-    constants: Vec<Object>,
+    pub symtab: Rc<RefCell<symtab::Table>>,
+    constants: Vec<Rc<Object>>,
     scopes: Vec<CompScope>,
     scope_index: usize,
 }
@@ -61,8 +62,9 @@ impl Compiler {
             last_ins: EmittedIns::new(),
             prev_ins: EmittedIns::new(),
         };
+        
         Self {
-            symtab: symtab::Table::new(),
+            symtab: Rc::new(RefCell::new(symtab::Table::new())),
             constants: Vec::new(),
             scopes: vec![mainscope],
             scope_index: 0,
@@ -85,6 +87,22 @@ impl Compiler {
         self.bytecode()
     }
 
+    fn sym_define(&mut self , name :&str) -> Rc<Symbol> {
+        self.symtab.borrow_mut().define(name)
+    }
+
+    fn sym_resolve(&mut self , name :&str) -> Result<Rc<Symbol> ,bool > {
+        self.symtab.borrow_mut().resolve(name.to_string())
+    }
+
+    fn sym_define_fun(&mut self , name :&str) -> Rc<Symbol> {
+        self.symtab.borrow_mut().define_func(name.to_string())
+    }
+
+    fn sym_free_syms(&self) -> Vec<Rc<Symbol>> {
+        self.symtab.borrow().free_syms.clone()
+    }
+
     pub fn compile_stmt(&mut self, stmt: &ast::Stmt) {
         match stmt {
             ast::Stmt::LetStmt {
@@ -92,7 +110,7 @@ impl Compiler {
                 name,
                 value,
             } => {
-                let sm = self.symtab.define(name.name.clone());
+                let sm = self.sym_define(&name.name);
                 self.compiler_expr(value);
 
                 match sm.scope {
@@ -131,7 +149,7 @@ impl Compiler {
     pub fn compiler_expr(&mut self, expr: &ast::Expr) {
         match expr {
             ast::Expr::IdentExpr { token: _, value } => {
-                let sm = self.symtab.resolve(value.clone());
+                let sm = self.sym_resolve(&value);
 
                 if let Ok(s) = sm {
                     self.load_symbol(&s);
@@ -140,10 +158,10 @@ impl Compiler {
                 }
             }
             ast::Expr::StringExpr { token, value } => {
-                let sl = Object::String {
+                let sl = Rc::new(Object::String {
                     token: Some(token.to_owned()),
                     value: value.to_string(),
-                };
+                });
                 let con = self.add_const(sl);
                 //println!("{con}");
                 self.emit(Opcode::Const, Some(&vec![con]));
@@ -153,10 +171,10 @@ impl Compiler {
                 value,
                 is_int: _,
             } => {
-                let num = Object::Number {
+                let num = Rc::new(Object::Number {
                     token: Some(token.to_owned()),
                     value: value.clone(),
-                };
+                });
                 let con = self.add_const(num);
                 self.emit(Opcode::Const, Some(&vec![con]));
             }
@@ -238,12 +256,12 @@ impl Compiler {
             ast::Expr::FuncExpr(f) => {
                 self.enter_scope();
                 if !f.name.is_empty() {
-                    self.symtab.define_func(f.name.clone());
+                    self.sym_define_fun(&f.name);
                 }
                 let fun_params = f.params.to_vec();
 
                 for p in &fun_params {
-                    self.symtab.define(p.name.clone());
+                    self.sym_define(&p.name);
                 }
                 self.compile_stmt(&f.body);
                 if self.is_last_ins(&Opcode::Pop) {
@@ -253,19 +271,19 @@ impl Compiler {
                 if !self.is_last_ins(&Opcode::ReturnValue) {
                     self.emit(Opcode::Return, None);
                 }
-                let free_syms = self.symtab.free_syms.clone();
-                let num_locals = self.symtab.numdef;
+                let free_syms = self.sym_free_syms();
+                let num_locals = self.symtab.borrow().numdef;
                 let ins = self.leave_scope();
 
                 for s in &free_syms {
                     self.load_symbol(s);
                 }
 
-                let cmp_fn = Object::Compfunc(CompFunc {
-                    fnin: ins,
+                let cmp_fn = Rc::new(Object::Compfunc(CompFunc {
+                    fnin: Rc::new(ins),
                     num_locals,
                     num_params: fun_params.len(),
-                });
+                }));
                 let con = self.add_const(cmp_fn);
                 self.emit(Opcode::Closure, Some(&vec![con, free_syms.len()]));
             }
@@ -396,7 +414,7 @@ impl Compiler {
         self.scopes[self.scope_index].last_ins = prev;
     }
 
-    fn add_const(&mut self, obj: Object) -> usize {
+    fn add_const(&mut self, obj: Rc<Object>) -> usize {
         self.constants.push(obj);
         self.constants.len() - 1
     }
@@ -418,7 +436,11 @@ impl Compiler {
             prev_ins: EmittedIns::new(),
         };
 
-        self.symtab = Table::new_enclosed(self.symtab.clone());
+//        self.symtab = Rc::new(
+//                RefCell::new(Table::new_enclosed(Rc::new(self.symtab.borrow())))
+//            );
+//
+        self.symtab = Rc::new(RefCell::new(Table::new_enclosed(self.symtab.borrow())));
         self.scopes.push(scope);
 
         self.scope_index += 1;
@@ -428,14 +450,16 @@ impl Compiler {
         let ins = self.current_ins().clone();
         self.scopes = self.scopes[..self.scopes.len() - 1].to_vec();
         self.scope_index -= 1;
-        self.symtab = self.symtab.get_outer().unwrap();
+        
+        let x = self.symtab.borrow().get_outer_no_check();      
+        self.symtab = Rc::new(RefCell::new(x));
 
         ins
     }
 
     pub fn bytecode(&self) -> Bytecode {
         Bytecode {
-            instructions: self.current_ins().clone(),
+            instructions: Rc::new(self.current_ins().clone()),
             constants: self.constants.clone(),
         }
     }

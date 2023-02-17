@@ -1,5 +1,6 @@
 use std::fmt::Display;
 use std::io::Cursor;
+use std::rc::Rc;
 
 use byteorder::{self, ReadBytesExt, WriteBytesExt};
 use byteorder::{BigEndian, ByteOrder};
@@ -51,8 +52,17 @@ pub struct OpDef {
 
 #[derive(Debug, Clone)]
 pub struct Bytecode {
-    pub instructions: Instructions,
-    pub constants: Vec<Object>,
+    pub instructions: Rc<Instructions>,
+    pub constants: Vec<Rc<Object>>,
+}
+
+impl Display for Bytecode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut result = String::new();
+
+        result.push_str(&format!("Instructions:\n{}\n\nConstants:{:?}\n" , self.instructions , self.constants));
+        write!(f , "{result}")
+    }
 }
 
 impl OpDef {

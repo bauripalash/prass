@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, cell::Ref};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Scope {
@@ -19,9 +19,9 @@ pub struct Symbol {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Table {
     pub outer: Option<Rc<Table>>,
-    pub store: HashMap<String, Symbol>,
+    pub store: HashMap<String, Rc<Symbol>>,
     pub numdef: usize,
-    pub free_syms: Vec<Symbol>,
+    pub free_syms: Vec<Rc<Symbol>>,
 }
 
 impl Table {
@@ -34,14 +34,25 @@ impl Table {
         }
     }
 
-    pub fn new_enclosed(outer: Self) -> Self {
+    pub fn new_enclosed(outer: Ref<Self>) -> Self {
         Self {
-            outer: Some(Rc::new(outer)),
+            outer: Some(Rc::new(outer.clone())),
             store: HashMap::new(),
             numdef: 0,
             free_syms: Vec::new(),
         }
     }
+
+    pub fn new_enclosed_noref(outer : Rc<Self>) -> Self{
+            Self{
+                outer : Some(outer),
+                store : HashMap::new(),
+                numdef : 0,
+                free_syms : Vec::new()
+            }
+    }
+
+    
 
     pub fn get_outer(&self) -> Option<Self> {
         if let Some(o) = &self.outer {
@@ -51,42 +62,44 @@ impl Table {
         None
     }
 
-    pub fn define(&mut self, name: String) -> Symbol {
-        let mut sm = Symbol {
-            name: name.clone(),
-            index: self.numdef,
-            scope: Scope::default(),
-        };
+    pub fn get_outer_no_check(&self) -> Self{
+        self.outer.as_ref().unwrap().as_ref().clone()
+    }
 
-        if self.outer.is_some() {
-            sm.scope = Scope::Local;
-        }
-        self.store.insert(name, sm.clone());
+    pub fn define(&mut self, name: &str) -> Rc<Symbol> {
+        let sm = Rc::new(Symbol {
+            name: name.to_string(),
+            index: self.numdef,
+            scope: if self.outer.is_some() { Scope::Local } else { Scope::default() } ,
+        });
+
+        self.store.insert(name.to_string() , sm.clone());
         self.numdef += 1;
         sm
     }
-    pub fn define_func(&mut self, name: String) -> Symbol {
-        let s = Symbol {
+    pub fn define_func(&mut self, name: String) -> Rc<Symbol> {
+        let s = Rc::new(Symbol {
             name: name.clone(),
             index: 0,
             scope: Scope::Func,
-        };
+        });
         self.store.insert(name, s.clone());
         s
     }
 
-    pub fn define_free(&mut self, org: Symbol) -> Symbol {
+    pub fn define_free(&mut self, org: Rc<Symbol>) -> Rc<Symbol> {
         self.free_syms.push(org.clone());
-        let sm = Symbol {
+        let sm = Rc::new(Symbol {
             name: org.name.clone(),
             index: self.free_syms.len() - 1,
             scope: Scope::Free,
-        };
-        self.store.insert(org.name, sm.clone());
+        });
+        self.store.insert(org.name.clone(), sm.clone());
         sm
+        
     }
 
-    pub fn resolve(&mut self, name: String) -> Result<Symbol, bool> {
+    pub fn resolve(&mut self, name: String) -> Result<Rc<Symbol>, bool> {
         let obj = self.store.get(&name);
 
         if obj.is_none() && self.outer.is_some() {
@@ -119,23 +132,23 @@ mod tests {
     #[test]
     fn define() {
         let mut tab = Table::new();
-        let a = tab.define("a".to_string());
+        let a = tab.define("a");
         assert_eq!(
             a,
             Symbol {
                 name: "a".to_string(),
                 scope: Scope::Global,
                 index: 0
-            }
+            }.into()
         );
     }
 
     #[test]
     fn resolve_free() {
         let mut t = Table::new();
-        t.define("a".to_string());
-        t.define("b".to_string());
-        let mut tt = Table::new_enclosed(t);
+        t.define("a");
+        t.define("b");
+        let mut tt = Table::new_enclosed_noref(t.into());
         let rs = tt.resolve("a".to_string()).expect("expected to resolve");
         assert_eq!(
             rs,
@@ -143,9 +156,9 @@ mod tests {
                 scope: Scope::Global,
                 index: 0,
                 name: "a".to_owned()
-            }
+            }.into()
         );
-        tt.define("c".to_string());
+        tt.define("c");
         let rs = tt.resolve("c".to_string()).expect("expected to resolve");
         assert_eq!(
             rs,
@@ -153,13 +166,13 @@ mod tests {
                 scope: Scope::Local,
                 index: 0,
                 name: "c".to_owned()
-            }
+            }.into()
         );
         tt.define_free(Symbol {
             name: "d".to_string(),
             scope: Scope::Free,
             index: 4,
-        });
+        }.into());
         let rs = tt.resolve("d".to_string()).expect("expected to resolve");
         assert_eq!(
             rs,
@@ -167,7 +180,7 @@ mod tests {
                 scope: Scope::Free,
                 index: 0,
                 name: "d".to_owned()
-            }
+            }.into()
         );
     }
 }

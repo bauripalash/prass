@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::rc::Rc;
 
 use crate::{compiler::code, obj::Closure};
 
@@ -30,7 +31,7 @@ impl Frame {
         Self { cl: cf, ip: -1, bp }
     }
 
-    pub fn get_instructions(&self) -> code::Instructions {
+    pub fn get_instructions(&self) -> Rc<code::Instructions> {
         self.cl.fun.fnin.clone()
     }
 }

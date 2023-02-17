@@ -118,7 +118,7 @@ pub struct Closure {
 }
 
 impl Closure {
-    pub const fn new(fnin: Instructions) -> Self {
+    pub const fn new(fnin: Rc<Instructions>) -> Self {
         Self {
             fun: CompFunc::new(fnin),
             frees: Vec::new(),
@@ -137,7 +137,7 @@ impl Display for Closure {
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CompFunc {
-    pub fnin: Instructions,
+    pub fnin: Rc<Instructions>,
     pub num_locals: usize,
     pub num_params: usize,
 }
@@ -151,7 +151,7 @@ impl Display for CompFunc {
 impl Default for CompFunc {
     fn default() -> Self {
         Self {
-            fnin: Instructions::new(),
+            fnin: Rc::new(Instructions::new()),
             num_locals: 0,
             num_params: 0,
         }
@@ -159,7 +159,7 @@ impl Default for CompFunc {
 }
 
 impl CompFunc {
-    pub const fn new(fnin: Instructions) -> Self {
+    pub const fn new(fnin: Rc<Instructions>) -> Self {
         Self {
             fnin,
             num_locals: 0,

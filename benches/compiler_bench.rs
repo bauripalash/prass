@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use pras::{lexer, parser::{self, Parser}};
+use pras::{lexer, parser, compiler::Compiler, ast::Program};
 
 pub static INPUT : &str = "
     dhori fib = ekti kaj(x)
@@ -16,23 +16,27 @@ pub static INPUT : &str = "
     fib(10)
     #dekhao(fib(22),1,2,3,4)";
 
-fn parser_bench(p: &mut Parser) {
-p.parse_program().expect("parser_error");    //while !l.is_at_eof() {
+fn compiler_bench(prog : Program , cm : &mut Compiler) {
+
+    cm.compile(prog);
+    
+    //while !l.is_at_eof() {
     //    l.next_token();
     //}
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let lx = lexer::Lexer::new(INPUT);
-    let mut p = parser::Parser::new(lx);
-    c.bench_function("parser_if_else", |b| {
+    let l = lexer::Lexer::new(INPUT);
+    let mut p = parser::Parser::new(l);
+    let prog = p.parse_program().expect("parser error on fibonacci benchmark");
+    let mut com = Compiler::new();
+    c.bench_function("compile_fib", |b| {
         b.iter(|| {
-            parser_bench(black_box(
-            &mut p
-            ))
+            compiler_bench(black_box(prog.clone()),black_box(&mut com))
         })
     });
 }
 
 criterion_group!(benches, criterion_benchmark);
+
 criterion_main!(benches);

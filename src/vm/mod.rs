@@ -34,7 +34,7 @@ const fn bool_native_to_obj(b: bool) -> Object {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vm {
-    constants: Vec<Object>,
+    constants: Vec<Rc<Object>>,
     stack: Vec<Object>,
     sp: usize,
     globals: Vec<Object>,
@@ -44,6 +44,7 @@ pub struct Vm {
 
 impl Vm {
     pub fn new(bc: Bytecode) -> Self {
+        
         let main_cl = Closure::new(bc.instructions);
         let main_frame = Frame::new(main_cl, 0);
         let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
@@ -94,7 +95,7 @@ impl Vm {
 
     pub fn run(&mut self) {
         let mut ip: usize;
-        let mut ins: Instructions;
+        let mut ins: Rc<Instructions>;
         let mut op: code::Opcode;
         while self.current_frame().ip
             < (self.current_frame().get_instructions().ins.len() as i64) - 1
@@ -104,11 +105,12 @@ impl Vm {
             ip = self.current_frame().ip as usize;
             ins = self.current_frame().get_instructions();
             op = code::u8_to_op(ins.ins[ip]);
+
             //println!("{:?}", op);
 
             match op {
                 code::Opcode::Const => {
-                    let op_ins = ins.ins;
+                    let op_ins = &ins.ins;
                     let con_index = Instructions::read_uint16(op_ins.to_vec(), ip + 1) as usize;
                     let con_obj = &self.constants[con_index].clone();
                     self.push(con_obj);
@@ -274,7 +276,8 @@ impl Vm {
 
     fn push_closure(&mut self, index: usize, num_free: usize) {
         let obj = &self.constants[index];
-        let Object::Compfunc(cf) = obj else{
+        
+        let Object::Compfunc(cf) = obj.as_ref() else{
             panic!("not fun");
         };
         let mut fr: Vec<Rc<Object>> = vec![NULL.into(); num_free];
