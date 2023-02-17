@@ -7,7 +7,7 @@ use crate::{
     token::{self, Token, TokenType},
 };
 
-type ParseResult<T> = std::result::Result<T, ParserError>;
+type ParseResult<T> = T; //ParserError>;
 
 //#[allow(dead_code)]
 const P_LOWEST: usize = 1;
@@ -55,8 +55,11 @@ impl<'pax> Parser<'pax> {
         p
     }
 
-    fn last_error(&self) -> &ParserError {
-        self.errors.last().unwrap()
+    fn err_to_expr(&mut self, err: &ParserError, push_err: bool) -> ast::Expr {
+        if push_err {
+            self.errors.push(err.clone());
+        }
+        ast::Expr::ErrExpr(err.to_owned())
     }
 
     //
@@ -159,10 +162,7 @@ impl<'pax> Parser<'pax> {
 
     fn peek_error(&mut self, tok: &TokenType) {
         println!("{}", self.lexer.eh.show_error(&self.peektok));
-        let errmsg = format!(
-            "{:?} | Expected {:?} but got {:?}",
-            self.curtok, tok, self.peektok.ttype
-        );
+        let errmsg = format!("Expected {:?} but got {:?}", tok, self.peektok);
         self.errors.push(ParserError::new(
             &errmsg,
             Some(&self.peektok),
@@ -193,11 +193,15 @@ impl<'pax> Parser<'pax> {
     //
     //
 
-    pub fn parse_program(&mut self) -> ParseResult<ast::Program> {
-        if let Ok(stmts) = self.parse_stmts() {
+    pub fn parse_program(&mut self) -> Result<ast::Program, bool> {
+        let stmts = self.parse_stmts();
+
+        if self.errors.is_empty() {
+            //if let Ok(stmts) = self.parse_stmts() {
             return Ok(Program { stmts });
         }
-        Err(self.errors[0].clone())
+        //}
+        Err(false)
         //return self.parse_stmts()
 
         //Ok(Program { stmts: stms })
@@ -214,14 +218,16 @@ impl<'pax> Parser<'pax> {
         while !self.is_curtok(&TokenType::Eof) {
             let s = self.parse_single_stmt();
 
-            if let Ok(ss) = s {
-                stmts.push(ss);
-                self.next_token();
-            } else {
-                return Err(s.err().unwrap());
-            }
+            //if let Ok(ss) = s {
+            stmts.push(s);
+            self.next_token();
+            //} else {
+            //    return Err(s.err().unwrap());
+            //}
         }
-        Ok(stmts)
+        //Ok(
+        stmts
+        //)
     }
 
     fn parse_single_stmt(&mut self) -> ParseResult<Rc<ast::Stmt>> {
@@ -235,26 +241,25 @@ impl<'pax> Parser<'pax> {
 
     fn parse_let_stmt(&mut self) -> ParseResult<Rc<Stmt>> {
         let ctok = self.curtok.clone();
-        if !self.now(&TokenType::Let) {
-            return Err(self.last_error().to_owned());
-        }
+        //if !
+        self.now(&TokenType::Let); // {
+                                   //            return Err(self.last_error().to_owned());
+                                   //       }
 
         //self.next_token();
 
-        let id = self.parse_as_identifier().unwrap(); //Note: It is safe for
-                                                      //now to unwrap
-                                                      //self.now(&TokenType::Ident);
-                                                      //println!("{:?} {:?}" , self.curtok ,self.peektok);
+        let id = self.parse_as_identifier();
+
         if self.peek(&TokenType::Eq) {
             self.next_token();
-        } else {
-            return Err(self.last_error().to_owned());
-        }
+        } //else {
+          // return Err(self.last_error().to_owned());
+          // }
 
-        let raw_expr_val = self.parse_expr(P_LOWEST);
-        let Ok(mut expr_val) = raw_expr_val else{
-            return Err(raw_expr_val.err().unwrap());
-        };
+        let mut expr_val = self.parse_expr(P_LOWEST);
+        //let Ok(mut expr_val) = raw_expr_val else{
+        //    return Err(raw_expr_val.err().unwrap());
+        //};
         //let mut expr_val = self.parse_expr(P_LOWEST);
         let mut func_binding = expr_val.as_ref().clone();
         let func_val = func_binding.get_fn();
@@ -267,61 +272,68 @@ impl<'pax> Parser<'pax> {
 
         self.skip_semicolon();
 
-        Ok(Rc::new(ast::Stmt::LetStmt {
+        //Ok(
+        Rc::new(ast::Stmt::LetStmt {
             token: ctok,
             name: id,
             value: expr_val,
-        }))
+        })
+        //)
     }
 
     fn parse_show_stmt(&mut self) -> ParseResult<Rc<ast::Stmt>> {
         let ctok = self.curtok.clone();
-        if !self.now(&TokenType::Show) {
-            return Err(self.last_error().to_owned());
-        }
+        //if !
+        self.now(&TokenType::Show); //{
+                                    //            return Err(self.last_error().to_owned());
+                                    //        }
 
-        if !self.now(&TokenType::Lparen) {
-            return Err(self.last_error().to_owned());
-        }
-        let raw_exprs = self.parse_expr_list(&TokenType::Rparen);
-        let Ok(value) = raw_exprs else {
-            return Err(raw_exprs.err().unwrap());
-        };
+        //if !
+        self.now(&TokenType::Lparen); //{
+                                      //            return Err(self.last_error().to_owned());
+                                      //       }
+        let value = self.parse_expr_list(&TokenType::Rparen);
+        //     let Ok(value) = raw_exprs else {
+        //         return Err(raw_exprs.err().unwrap());
+        //    };
 
         self.skip_semicolon();
-        Ok(Rc::new(ast::Stmt::ShowStmt { token: ctok, value }))
+        Rc::new(ast::Stmt::ShowStmt { token: ctok, value })
     }
 
     fn parse_return_stmt(&mut self) -> ParseResult<Rc<ast::Stmt>> {
         let ctok = self.curtok.clone();
-        if !self.now(&TokenType::Return) {
-            return Err(self.last_error().to_owned());
-        }
-        if !self.now(&TokenType::Lparen) {
-            return Err(self.last_error().to_owned());
-        }
-        let raw_expr = self.parse_expr(P_LOWEST);
-        let Ok(rval) = raw_expr else{
-            return Err(raw_expr.err().unwrap());
-        };
-        if !self.peek(&TokenType::Rparen) {
-            return Err(self.last_error().to_owned());
-        }
+        //if !
+        self.now(&TokenType::Return); // {
+                                      //            return Err(self.last_error().to_owned());
+                                      //       }
+                                      //if !
+        self.now(&TokenType::Lparen);
+        //{
+        //  return Err(self.last_error().to_owned());
+        //}
+        let rval = self.parse_expr(P_LOWEST);
+        //let Ok(rval) = raw_expr else{
+        //    return Err(raw_expr.err().unwrap());
+        //};
+        self.peek(&TokenType::Rparen); //{
+                                       //    return Err(self.last_error().to_owned());
+
         self.skip_semicolon();
-        Ok(Rc::new(Stmt::ReturnStmt { token: ctok, rval }))
+        Rc::new(Stmt::ReturnStmt { token: ctok, rval })
     }
 
     fn parse_expr_stmt(&mut self) -> ParseResult<Rc<Stmt>> {
         let token = self.curtok.clone();
-        let raw_expr = self.parse_expr(P_LOWEST);
-        let Ok(expr) = raw_expr else{
-            return Err(raw_expr.err().unwrap());
-        };
+        let expr = self.parse_expr(P_LOWEST);
+        //let Ok(expr) = raw_expr else{
+        //    return Err(raw_expr.err().unwrap());
+        //};
         let ex = Rc::new(ast::Stmt::ExprStmt { token, expr });
 
         self.skip_semicolon();
 
-        Ok(ex)
+        ex
     }
 
     fn parse_block_stms(&mut self, end: &TokenType) -> ParseResult<Rc<Stmt>> {
@@ -329,15 +341,15 @@ impl<'pax> Parser<'pax> {
         let mut stmts: Vec<Rc<ast::Stmt>> = Vec::new();
         while !self.is_curtok(end) && !self.is_curtok(&TokenType::Eof) {
             let s = self.parse_single_stmt();
-            if let Ok(ss) = s {
-                stmts.push(ss);
-                self.next_token();
-            } else {
-                return s;
-            }
+            //if let Ok(ss) = s {
+            stmts.push(s);
+            self.next_token();
+            //} else {
+            //    return s;
+            //}
         }
 
-        Ok(Rc::new(Stmt::BlockStmt { token: ct, stmts }))
+        Rc::new(Stmt::BlockStmt { token: ct, stmts })
     }
 
     //
@@ -360,31 +372,31 @@ impl<'pax> Parser<'pax> {
             TokenType::While => self.parse_while_expr(),
             TokenType::Lparen => self.parse_grouped_expr(),
             TokenType::BANG | TokenType::Minus => {
-                let op = self.curtok.clone();
+                let token = self.curtok.clone();
                 self.next_token();
-                let raw_r = self.parse_expr(P_PREFIX);
-                let Ok(r) = raw_r else{
-                return Err(raw_r.err().unwrap());
-                };
+                let right = self.parse_expr(P_PREFIX);
+                //let Ok(r) = raw_r else{
+                //return Err(raw_r.err().unwrap());
+                //};
 
-                Ok(Rc::new(ast::Expr::PrefixExpr {
-                    token: op.clone(),
-                    op,
-                    right: r,
-                }))
+                Rc::new(ast::Expr::PrefixExpr {
+                    token: token.clone(),
+                    op: token,
+                    right,
+                })
             }
             TokenType::Lbrace => self.parse_hash_expr(),
             _ => {
                 let err =
                     ParserError::new("Unknown Prefix; Unexpected Token", Some(&self.curtok), None);
                 self.got_error_jump_with_err(err.clone());
-                Err(err)
-                //Rc::new(ast::Expr::ErrExpr(err))
+                //Err(err)
+                Rc::new(ast::Expr::ErrExpr(err))
             }
         }
     }
 
-    fn parse_infix_expr(&mut self, left: Rc<ast::Expr>) -> ParseResult<Rc<ast::Expr>> {
+    fn parse_infix_expr(&mut self, left: Rc<ast::Expr>) -> Result<Rc<ast::Expr>, ParserError> {
         match self.curtok.ttype {
             TokenType::Plus
             | TokenType::Minus
@@ -398,10 +410,10 @@ impl<'pax> Parser<'pax> {
             | TokenType::GTE
             | TokenType::And
             | TokenType::Or
-            | TokenType::MOD => self.parse_infix_op(left),
+            | TokenType::MOD => Ok(self.parse_infix_op(left)),
 
-            TokenType::Lparen => self.parse_call_expr(left),
-            TokenType::LSBracket => self.parse_index_expr(left),
+            TokenType::Lparen => Ok(self.parse_call_expr(left)),
+            TokenType::LSBracket => Ok(self.parse_index_expr(left)),
 
             _ => Err(ParserError::new(
                 "Unknown Infix Operator",
@@ -415,23 +427,23 @@ impl<'pax> Parser<'pax> {
         let op = self.curtok.clone();
         let prec = get_precedences(&op.ttype);
         self.next_token();
-        let raw_right = self.parse_expr(prec);
-        let Ok(right) = raw_right else{
-            return Err(raw_right.err().unwrap());
-        };
+        let right = self.parse_expr(prec);
+        //let Ok(right) = raw_right else{
+        //    return Err(raw_right.err().unwrap());
+        //};
 
-        Ok(Rc::new(ast::Expr::InfixExpr {
+        Rc::new(ast::Expr::InfixExpr {
             token: op.clone(),
             left,
             op,
             right,
-        }))
+        })
     }
     fn parse_expr(&mut self, prec: usize) -> ParseResult<Rc<ast::Expr>> {
-        let raw_left_expr = self.parse_prefix_expr();
-        let Ok(mut left_expr) = raw_left_expr else{
-            return Err(raw_left_expr.err().unwrap());
-        };
+        let mut left_expr = self.parse_prefix_expr();
+        //let Ok(mut left_expr) = raw_left_expr else{
+        //    return Err(raw_left_expr.err().unwrap());
+        //};
 
         while !self.is_peektok(&TokenType::Semicolon) && prec < self.peek_prec() {
             self.next_token();
@@ -442,7 +454,7 @@ impl<'pax> Parser<'pax> {
             if let Ok(infix_expr) = infx {
                 left_expr = infix_expr;
             } else {
-                return Ok(left_expr);
+                return left_expr;
             }
             /*if let Ok(ix) = infx {
                 left_expr = Ok(ix);
@@ -451,7 +463,7 @@ impl<'pax> Parser<'pax> {
             }*/
         }
 
-        Ok(left_expr)
+        left_expr
     }
 
     fn parse_hash_expr(&mut self) -> ParseResult<Rc<ast::Expr>> {
@@ -461,11 +473,11 @@ impl<'pax> Parser<'pax> {
         self.next_token();
 
         while !self.is_curtok(&TokenType::Rbrace) {
-            let raw_k = self.parse_expr(P_LOWEST);
+            let k = self.parse_expr(P_LOWEST);
 
-            let Ok(k) = raw_k else{
-                return Err(raw_k.err().unwrap());
-            };
+            //let Ok(k) = raw_k else{
+            //    return Err(raw_k.err().unwrap());
+            //};
             //drop(raw_k); //TODO:
             self.next_token();
 
@@ -475,10 +487,10 @@ impl<'pax> Parser<'pax> {
 
             self.now(&TokenType::Colon);
 
-            let raw_v = self.parse_expr(P_LOWEST);
-            let Ok(v) = raw_v else{
-                return Err(raw_v.err().unwrap());
-            };
+            let v = self.parse_expr(P_LOWEST);
+            //let Ok(v) = raw_v else{
+            //    return Err(raw_v.err().unwrap());
+            //};
             self.next_token();
             hash_pairs.push((k, v));
 
@@ -487,30 +499,30 @@ impl<'pax> Parser<'pax> {
             }
         }
 
-        Ok(Rc::new(ast::Expr::HashExpr {
+        Rc::new(ast::Expr::HashExpr {
             token: curtok,
             pairs: hash_pairs,
-        }))
+        })
     }
 
     fn parse_index_expr(&mut self, arr: Rc<ast::Expr>) -> ParseResult<Rc<ast::Expr>> {
         let curtok = self.curtok.clone();
         self.next_token();
 
-        let raw_index = self.parse_expr(P_LOWEST);
+        let index = self.parse_expr(P_LOWEST);
 
-        let Ok(index) = raw_index else{
-            return Err(raw_index.err().unwrap());
-        };
+        //let Ok(index) = raw_index else{
+        //    return Err(raw_index.err().unwrap());
+        //};
 
         //drop(raw_index); //TODO : What does this do?
 
         self.next_token();
-        Ok(Rc::new(ast::Expr::IndexExpr {
+        Rc::new(ast::Expr::IndexExpr {
             token: curtok,
             left: arr,
             index,
-        }))
+        })
 
         //println!("{:?}" , x);
         //x
@@ -519,25 +531,26 @@ impl<'pax> Parser<'pax> {
     fn parse_expr_list(&mut self, end: &TokenType) -> ParseResult<Vec<Rc<ast::Expr>>> {
         let mut el: Vec<Rc<ast::Expr>> = Vec::new();
         if !self.is_curtok(end) {
-            let raw_expr = self.parse_expr(P_LOWEST);
-            let Ok(expr) = raw_expr else{
-                return Err(raw_expr.err().unwrap());
-            };
+            let expr = self.parse_expr(P_LOWEST);
+            //let Ok(expr) = raw_expr else{
+
+            //    return Err(raw_expr.err().unwrap());
+            //};
 
             el.push(expr);
         }
         if self.is_peektok(end) {
             self.next_token();
-            return Ok(el);
+            return el;
         }
 
         while self.is_peektok(&TokenType::Comma) {
             self.next_token();
             self.next_token();
-            let raw_expr = self.parse_expr(P_LOWEST);
-            let Ok(expr) = raw_expr else{
-                return Err(raw_expr.err().unwrap());
-            };
+            let expr = self.parse_expr(P_LOWEST);
+            //let Ok(expr) = raw_expr else{
+            //    return Err(raw_expr.err().unwrap());
+            //};
             el.push(expr);
         }
 
@@ -546,7 +559,7 @@ impl<'pax> Parser<'pax> {
         //}
         self.peek(end);
 
-        Ok(el)
+        el
     }
 
     fn parse_grouped_expr(&mut self) -> ParseResult<Rc<ast::Expr>> {
@@ -559,48 +572,52 @@ impl<'pax> Parser<'pax> {
     fn parse_if_else_expr(&mut self) -> ParseResult<Rc<ast::Expr>> {
         let curtok = self.curtok.clone();
 
-        if !self.now(&TokenType::If) {
-            return Err(self.last_error().to_owned());
-        }
-        if !self.now(&TokenType::Lparen) {
-            return Err(self.last_error().to_owned());
-        }
-        let raw_cond_expr = self.parse_expr(P_LOWEST);
-        let Ok(cond_expr) = raw_cond_expr else{
-            return Err(raw_cond_expr.err().unwrap());
-        };
+        self.now(&TokenType::If);
+        //{
+        //    return Err(self.last_error().to_owned());
+        //}
+        self.now(&TokenType::Lparen);
+        //{
+        //    return Err(self.last_error().to_owned());
+        //}
+        let cond = self.parse_expr(P_LOWEST);
+        //let Ok(cond_expr) = raw_cond_expr else{
+        //    return Err(raw_cond_expr.err().unwrap());
+        //};
         if self.peek(&TokenType::Rparen) {
             self.next_token();
         }
 
-        if !self.now(&TokenType::Then) {
-            return Err(self.last_error().to_owned());
-        }
+        //if !
+        self.now(&TokenType::Then);
+        //    return Err(self.last_error().to_owned());
+        //}
 
-        let raw_true_block = self.parse_block_stms(&TokenType::Else);
-        let Ok(true_block) = raw_true_block else{
-            return Err(raw_true_block.err().unwrap());
-        };
-        let mut else_block: Option<Rc<Stmt>> = None;
+        let trueblock = self.parse_block_stms(&TokenType::Else);
+        //let Ok(true_block) = raw_true_block else{
+        //    return Err(raw_true_block.err().unwrap());
+        //};
+        let mut elseblock: Option<Rc<Stmt>> = None;
 
-        if !self.now(&TokenType::Else) {
-            return Err(self.last_error().to_owned());
-        }
+        //if !
+        self.now(&TokenType::Else);
+        //   return Err(self.last_error().to_owned());
+        //}
 
         if !self.is_curtok(&TokenType::End) {
-            let raw_else_block = self.parse_block_stms(&TokenType::End);
-            let Ok(else_block_stmts) = raw_else_block else{
-                return Err(raw_else_block.err().unwrap());
-            };
-            else_block = Some(else_block_stmts);
+            let else_block_stmts = self.parse_block_stms(&TokenType::End);
+            //let Ok(else_block_stmts) = raw_else_block else{
+            //    return Err(raw_else_block.err().unwrap());
+            //};
+            elseblock = Some(else_block_stmts);
         }
 
-        Ok(Rc::new(ast::Expr::IfExpr {
+        Rc::new(ast::Expr::IfExpr {
             token: curtok,
-            cond: cond_expr,
-            trueblock: true_block,
-            elseblock: else_block,
-        }))
+            cond,
+            trueblock,
+            elseblock,
+        })
     }
 
     fn parse_while_expr(&mut self) -> ParseResult<Rc<ast::Expr>> {
@@ -610,22 +627,22 @@ impl<'pax> Parser<'pax> {
             self.next_token();
         }
 
-        let raw_cond_expr = self.parse_expr(P_LOWEST);
-        let Ok(cond) = raw_cond_expr else {
-            return Err(raw_cond_expr.err().unwrap());
-        };
+        let cond = self.parse_expr(P_LOWEST);
+        //let Ok(cond) = raw_cond_expr else {
+        //    return Err(raw_cond_expr.err().unwrap());
+        //};
 
         if self.is_peektok(&TokenType::Rparen) {
             self.next_token();
             self.next_token();
         }
-        let raw_loop_block = self.parse_block_stms(&TokenType::End);
+        let stmts = self.parse_block_stms(&TokenType::End);
 
-        let Ok(stmts) = raw_loop_block else{
-            return Err(raw_loop_block.err().unwrap());
-        };
+        //let Ok(stmts) = raw_loop_block else{
+        //    return Err(raw_loop_block.err().unwrap());
+        //};
 
-        Ok(Rc::new(ast::Expr::WhileExpr { token, cond, stmts }))
+        Rc::new(ast::Expr::WhileExpr { token, cond, stmts })
     }
 
     fn parse_func_expr(&mut self) -> ParseResult<Rc<ast::Expr>> {
@@ -649,23 +666,23 @@ impl<'pax> Parser<'pax> {
 
         //self.next_token();
 
-        let p = self.parse_func_params();
-        let Ok(params) = p else{
-            return Err(p.err().unwrap());
-        };
+        let params = self.parse_func_params();
+        //let Ok(params) = p else{
+        //    return Err(p.err().unwrap());
+        //};
 
-        let bs = self.parse_block_stms(&TokenType::End);
+        let body = self.parse_block_stms(&TokenType::End);
 
-        let Ok(body) = bs else{
-            return Err(bs.err().unwrap());
-        };
+        //let Ok(body) = bs else{
+        //    return Err(bs.err().unwrap());
+        //};
 
-        Ok(Rc::new(ast::Expr::FuncExpr(ast::FuncExpr {
+        Rc::new(ast::Expr::FuncExpr(ast::FuncExpr {
             name: String::from(""),
             token: ct,
             params,
             body,
-        })))
+        }))
     }
 
     fn parse_func_params(&mut self) -> ParseResult<Rc<Vec<ast::Identifier>>> {
@@ -676,34 +693,34 @@ impl<'pax> Parser<'pax> {
         //}
         if self.is_curtok(&TokenType::Rparen) {
             self.next_token();
-            return Ok(Rc::new(params));
+            return Rc::new(params);
         }
 
         let id = self.parse_as_identifier();
-        if let Ok(rid) = id {
-            params.push(rid)
-        } else {
-            return Err(ParserError::new(
-                "Expected Identifier but failed to parse this as identifier",
-                Some(&self.curtok),
-                Some(&self.curtok.ttype),
-            ));
-        }
+        //if let Ok(rid) = id {
+        params.push(id);
+        // } else {
+        //     return Err(ParserError::new(
+        //         "Expected Identifier but failed to parse this as identifier",
+        //         Some(&self.curtok),
+        //         Some(&self.curtok.ttype),
+        //     ));
+        //}
         //params.push(;
 
         while self.is_peektok(&TokenType::Comma) {
             self.next_token();
             self.next_token();
             let next_id = self.parse_as_identifier();
-            if let Ok(rid) = next_id {
-                params.push(rid)
-            } else {
-                return Err(ParserError::new(
-                    "Expected Identifier but failed to parse this as identifier",
-                    Some(&self.curtok),
-                    Some(&self.curtok.ttype),
-                ));
-            }
+            //if let Ok(rid) = next_id {
+            params.push(next_id)
+            //} else {
+            //    return Err(ParserError::new(
+            //        "Expected Identifier but failed to parse this as identifier",
+            //        Some(&self.curtok),
+            //        Some(&self.curtok.ttype),
+            //    ));
+            //}
             //            params.push(self.parse_as_identifier())
         }
 
@@ -711,23 +728,24 @@ impl<'pax> Parser<'pax> {
         if self.peek(&TokenType::Rparen) {
             //self.next_token();
             self.next_token();
-        } else {
-            return Err(self.last_error().to_owned());
         }
+        //} else {
+        //    return Err(self.last_error().to_owned());
+        //}
 
-        Ok(Rc::new(params))
+        Rc::new(params)
     }
 
     fn parse_call_expr(&mut self, func: Rc<ast::Expr>) -> ParseResult<Rc<ast::Expr>> {
         let token = self.curtok.clone();
         self.next_token();
 
-        let raw_args = self.parse_expr_list(&TokenType::Rparen);
-        let Ok(args) = raw_args else {
-            return Err(raw_args.err().unwrap());
-        };
+        let args = self.parse_expr_list(&TokenType::Rparen);
+        //        let Ok(args) = raw_args else {
+        //            return Err(raw_args.err().unwrap());
+        //        };
 
-        Ok(Rc::new(ast::Expr::CallExpr { token, func, args }))
+        Rc::new(ast::Expr::CallExpr { token, func, args })
     }
 
     fn parse_include_expr(&mut self) -> ParseResult<Rc<ast::Expr>> {
@@ -736,33 +754,35 @@ impl<'pax> Parser<'pax> {
         if self.is_curtok(&TokenType::Lparen) {
             self.next_token();
         }
-        let raw_filename = self.parse_expr(P_LOWEST);
-        let Ok(filename) = raw_filename else{
-            return Err(raw_filename.err().unwrap());
-        };
+        let filename = self.parse_expr(P_LOWEST);
+        //let Ok(filename) = raw_filename else{
+        //    return Err(raw_filename.err().unwrap());
+        //};
 
         if self.is_peektok(&TokenType::Rparen) {
             self.next_token();
         }
 
-        Ok(Rc::new(ast::Expr::IncludeExpr {
+        Rc::new(ast::Expr::IncludeExpr {
             token: curtok,
             filename,
-        }))
+        })
     }
 
     fn parse_array_expr(&mut self) -> ParseResult<Rc<ast::Expr>> {
         let token = self.curtok.clone();
-        if !self.now(&TokenType::LSBracket) {
-            return Err(self.last_error().to_owned());
-        }
+        self.now(&TokenType::LSBracket);
+        //{
+        //    return Err(self.last_error().to_owned());
+        //}
         //self.next_token();
-        let raw_elms = self.parse_expr_list(&TokenType::RSBracket);
-        let Ok(elems) = raw_elms else{
-            return Err(raw_elms.err().unwrap());
-        };
+        let elems = self.parse_expr_list(&TokenType::RSBracket);
+        //let Ok(elems) = raw_elms else{
+        //return ;
+        //  return Err(raw_elms.err().unwrap());
+        //};
         //self.next_token();
-        Ok(Rc::new(ast::Expr::ArrayExpr { token, elems }))
+        Rc::new(ast::Expr::ArrayExpr { token, elems })
     }
 
     //
@@ -772,45 +792,45 @@ impl<'pax> Parser<'pax> {
     //
 
     fn parse_identifier(&mut self) -> ParseResult<Rc<ast::Expr>> {
-        Ok(Rc::new(ast::Expr::IdentExpr {
+        Rc::new(ast::Expr::IdentExpr {
             token: self.curtok.clone(),
             value: self.curtok.literal.to_string(),
-        }))
-    }
-
-    fn parse_as_identifier(&mut self) -> ParseResult<ast::Identifier> {
-        //      let ctok = self.curtok.clone();
-        //        let is_mod = ctok.literal.contains('.');
-
-        Ok(Identifier {
-            token: self.curtok.clone(),
-            name: self.curtok.literal.to_string(),
-            is_mod: self.curtok.literal.contains('.'),
         })
     }
 
-    fn parse_string_lit(&mut self) -> ParseResult<Rc<ast::Expr>> {
-        Ok(Rc::new(ast::Expr::StringExpr {
+    fn parse_as_identifier(&mut self) -> ast::Identifier {
+        //      let ctok = self.curtok.clone();
+        //        let is_mod = ctok.literal.contains('.');
+
+        Identifier {
             token: self.curtok.clone(),
-            value: self.curtok.literal.to_string(),
-        }))
+            name: self.curtok.literal.to_string(),
+            is_mod: self.curtok.literal.contains('.'),
+        }
     }
 
-    fn parse_bool(&mut self) -> ParseResult<Rc<ast::Expr>> {
-        Ok(Rc::new(ast::Expr::BoolExpr {
+    fn parse_string_lit(&mut self) -> Rc<ast::Expr> {
+        Rc::new(ast::Expr::StringExpr {
+            token: self.curtok.clone(),
+            value: self.curtok.literal.to_string(),
+        })
+    }
+
+    fn parse_bool(&mut self) -> Rc<ast::Expr> {
+        Rc::new(ast::Expr::BoolExpr {
             token: self.curtok.clone(),
             value: self.is_curtok(&TokenType::True),
-        }))
+        })
     }
 
-    fn parse_break(&mut self) -> ParseResult<Rc<ast::Expr>> {
-        Ok(Rc::new(ast::Expr::Break {
+    fn parse_break(&mut self) -> Rc<ast::Expr> {
+        Rc::new(ast::Expr::Break {
             token: self.curtok.clone(),
             value: self.curtok.literal.to_string(),
-        }))
+        })
     }
 
-    fn parse_number(&mut self) -> ParseResult<Rc<ast::Expr>> {
+    fn parse_number(&mut self) -> Rc<ast::Expr> {
         let curtok = self.curtok.clone();
         let curtok_lit = curtok.literal.clone();
         //        let nl: Vec<&str> = curtok_lit.split('.').collect();
@@ -819,18 +839,17 @@ impl<'pax> Parser<'pax> {
             let v = curtok_lit.parse::<i64>();
 
             if let Ok(num) = v {
-                Ok(Rc::new(ast::Expr::NumExpr {
+                Rc::new(ast::Expr::NumExpr {
                     token: curtok,
                     value: token::NumberToken::Int(num),
                     is_int: true,
-                }))
+                })
             } else {
                 //Rc::new(ast::Expr::ErrExpr(
 
-                Err(ParserError::new(
-                    "Invalid Integer number",
-                    Some(&curtok),
-                    Some(&curtok.ttype),
+                Rc::new(self.err_to_expr(
+                    &ParserError::new("Invalid Integer number", Some(&curtok), Some(&curtok.ttype)),
+                    true,
                 ))
 
                 //))
@@ -839,18 +858,21 @@ impl<'pax> Parser<'pax> {
             // Should be == 2 : TO DO -> Check
             let v = curtok_lit.parse::<f64>();
             if let Ok(num) = v {
-                Ok(Rc::new(ast::Expr::NumExpr {
+                Rc::new(ast::Expr::NumExpr {
                     token: curtok,
                     value: token::NumberToken::Float(num),
                     is_int: false,
-                }))
+                })
             } else {
                 //Rc::new(ast::Expr::ErrExpr(
 
-                Err(ParserError::new(
-                    "Invalid Decimal/float number",
-                    Some(&curtok),
-                    Some(&curtok.ttype),
+                Rc::new(self.err_to_expr(
+                    &ParserError::new(
+                        "Invalid Decimal/float number",
+                        Some(&curtok),
+                        Some(&curtok.ttype),
+                    ),
+                    true,
                 ))
                 //))
             }

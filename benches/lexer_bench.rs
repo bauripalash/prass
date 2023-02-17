@@ -10,7 +10,24 @@ fn lexer_bench(s: &str) {
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("lexer_let_1p2", |b| {
-        b.iter(|| lexer_bench(black_box("let a = 1+2")))
+        b.iter(|| {
+            lexer_bench(black_box(
+                "
+    dhori fib = ekti kaj(x)
+        jodi (x == 0) tahole
+            ferao(0)
+        nahole 
+            jodi (x==1) tahole 
+                ferao(1)
+            nahole 
+                ferao(fib(x-1) + fib(x-2))
+            sesh 
+        sesh 
+    sesh
+    fib(10)
+    #dekhao(fib(22),1,2,3,4)",
+            ))
+        })
     });
 }
 

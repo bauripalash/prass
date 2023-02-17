@@ -23,20 +23,20 @@ fn main() {
 
     ";*/
 
-    let _src = "
-    dhori fib = ekti kaj(x)
+    let fib = "
+    dhori fib - ekti kaj(x)
         jodi (x == 0) tahole
             ferao(0)
         nahole 
-            jodi (x==1) tahole 
+            jodi (x==1) tahole *
                 ferao(1)
             nahole 
                 ferao(fib(x-1) + fib(x-2))
             sesh 
         sesh 
     sesh
-
-    dekhao(fib(22),1,2,3,4)
+    fib(10)
+    #dekhao(fib(22),1,2,3,4)
         ";
 
     /*  let src_z = "dhori newadder = ekti kaj(a,b)
@@ -53,16 +53,17 @@ fn main() {
     //   let src = "ekti kaj() 1; 2 sesh";
     //let src = "jodi (true) tahole 1 nahole sesh";
 
-    let a = Lexer::new("jodi (true) tahole 1 nahole 2 sesh");
+    //let a = Lexer::new("jodi  (true) tahole 1 nahole 2 sesh");
+    let a = Lexer::new(fib);
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
     //println!("{}", parsed_program.expect());
     if let Ok(ast) = parsed_program {
         println!("{ast}");
     } else {
-        for err in &parser.errors {
-            println!("Err => {}", err.msg);
-        }
+        //for err in &parser.errors {
+        //    println!("Err => {}", err.msg);
+        //}
         parser.print_errorrs();
         //panic!("please fix parser errors");
         exit(1);

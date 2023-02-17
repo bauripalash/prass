@@ -43,12 +43,9 @@ pub struct CompScope {
 #[derive(Debug, Clone)]
 pub struct Compiler {
     pub symtab: symtab::Table,
-    //instructions: code::Instructions,
     constants: Vec<Object>,
     scopes: Vec<CompScope>,
     scope_index: usize,
-    //last_ins: EmittedIns,
-    //prev_ins: EmittedIns,
 }
 
 impl Default for Compiler {
