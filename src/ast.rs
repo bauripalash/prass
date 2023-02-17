@@ -22,7 +22,7 @@ pub struct Program {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Identifier {
-    pub token: Token,
+    pub token: Rc<Token>,
     pub name: String,
     pub is_mod: bool,
 }
@@ -46,61 +46,61 @@ impl Display for Identifier {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord)]
 pub enum Expr {
     NumExpr {
-        token: Token,
+        token: Rc<Token>,
         value: NumberToken,
         is_int: bool,
     },
     IdentExpr {
-        token: Token,
+        token: Rc<Token>,
         value: String,
     },
     BoolExpr {
-        token: Token,
+        token: Rc<Token>,
         value: bool,
     },
     StringExpr {
-        token: Token,
+        token: Rc<Token>,
         value: String,
     },
     Break {
-        token: Token,
+        token: Rc<Token>,
         value: String,
     },
     PrefixExpr {
-        token: Token,
-        op: Token,
+        token: Rc<Token>,
+        op: Rc<Token>,
         right: Rc<Expr>,
     },
 
     InfixExpr {
-        token: Token,
+        token: Rc<Token>,
         left: Rc<Expr>,
-        op: Token,
+        op: Rc<Token>,
         right: Rc<Expr>,
     },
 
     ArrayExpr {
-        token: Token,
+        token: Rc<Token>,
         elems: Vec<Rc<Expr>>,
     },
     IndexExpr {
-        token: Token,
+        token: Rc<Token>,
         left: Rc<Expr>,
         index: Rc<Expr>,
     },
 
     IncludeExpr {
-        token: Token,
+        token: Rc<Token>,
         filename: Rc<Expr>,
     },
     IfExpr {
-        token: Token,
+        token: Rc<Token>,
         cond: Rc<Expr>,
         trueblock: Rc<Stmt>,
         elseblock: Option<Rc<Stmt>>,
     },
     WhileExpr {
-        token: Token,
+        token: Rc<Token>,
         cond: Rc<Expr>,
         stmts: Rc<Stmt>, //Block Stmt
     },
@@ -108,12 +108,12 @@ pub enum Expr {
     FuncExpr(FuncExpr),
 
     CallExpr {
-        token: Token,
+        token: Rc<Token>,
         func: Rc<Expr>,
         args: Vec<Rc<Expr>>,
     },
     HashExpr {
-        token: Token,
+        token: Rc<Token>,
         pairs: Vec<(Rc<Expr>, Rc<Expr>)>,
     },
     NullExpr,
@@ -122,7 +122,7 @@ pub enum Expr {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FuncExpr {
-    pub token: Token,
+    pub token: Rc<Token>,
     pub name: String,
     pub params: Rc<Vec<Identifier>>,
     pub body: Rc<Stmt>,
@@ -136,7 +136,7 @@ impl Expr {
         None
     }
 
-    pub fn is_error(&self) -> bool {
+    pub const fn is_error(&self) -> bool {
         matches!(self, Self::ErrExpr(..))
     }
 }
@@ -237,7 +237,7 @@ impl Display for Expr {
                 format!("hash({hp})")
             }
 
-            Self::ErrExpr(e) => "err()".to_string(),
+            Self::ErrExpr(e) => format!("{e:?}"),
             Self::NullExpr => "null".to_string(),
         };
 
@@ -248,28 +248,28 @@ impl Display for Expr {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord)]
 pub enum Stmt {
     LetStmt {
-        token: Token,
+        token: Rc<Token>,
         name: Identifier,
         value: Rc<Expr>,
     },
 
     ReturnStmt {
-        token: Token,
+        token: Rc<Token>,
         rval: Rc<Expr>,
     },
 
     ShowStmt {
-        token: Token,
+        token: Rc<Token>,
         value: Vec<Rc<Expr>>,
     },
 
     BlockStmt {
-        token: Token,
+        token: Rc<Token>,
         stmts: Vec<Rc<Stmt>>,
     },
 
     ExprStmt {
-        token: Token,
+        token: Rc<Token>,
         expr: Rc<Expr>,
     },
 }

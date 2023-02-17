@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::{
     ast,
     obj::{CompFunc, Object},
@@ -126,7 +124,7 @@ impl Compiler {
             ast::Stmt::ShowStmt { token: _, value } => {
                 //println!("{:?}" , value);
                 for v in value.iter() {
-                    self.compiler_expr(&v)
+                    self.compiler_expr(v)
                 }
                 self.emit(Opcode::Show, Some(&vec![value.len()]));
             } // _ => {}
@@ -146,7 +144,7 @@ impl Compiler {
             }
             ast::Expr::StringExpr { token, value } => {
                 let sl = Object::String {
-                    token: Some(Rc::new(token.clone())),
+                    token: Some(token.to_owned()),
                     value: value.to_string(),
                 };
                 let con = self.add_const(sl);
@@ -159,7 +157,7 @@ impl Compiler {
                 is_int: _,
             } => {
                 let num = Object::Number {
-                    token: Some(Rc::new(token.clone())),
+                    token: Some(token.to_owned()),
                     value: value.clone(),
                 };
                 let con = self.add_const(num);

@@ -3,6 +3,7 @@ use crate::{
     errorhelper::ErrorHelper,
     token::{lookup_ident, Token, TokenType},
 };
+use std::rc::Rc;
 
 fn charlist_to_string(charlist: &[char]) -> String {
     return charlist.iter().collect::<String>();
@@ -37,7 +38,7 @@ impl<'a> Lexer<'a> {
             colno: 0,
             ..Default::default()
         };
-        lexer.eh = ErrorHelper::new(&inp.to_string());
+        lexer.eh = ErrorHelper::new(inp);
         lexer.read_char();
         lexer
     }
@@ -150,7 +151,7 @@ impl<'a> Lexer<'a> {
         self.skip_whitespaces();
     }
 
-    pub fn next_token(&mut self) -> Result<Token, LexerError> {
+    pub fn next_token(&mut self) -> Result<Rc<Token>, LexerError> {
         self.skip_whitespaces();
         if self.ch == '#' {
             self.skip_comment();
@@ -338,11 +339,11 @@ impl<'a> Lexer<'a> {
                 if self.ch.is_ascii_digit() || is_bn_num(self.ch) {
                     let raw_number = self.read_number();
                     if let Some(n) = raw_number {
-                        return Ok(n);
+                        return Ok(Rc::new(n));
                     } else {
                         return Err(LexerError {
                             token: None,
-                            msg: format!("Invalid number literal -> {:?}", raw_number),
+                            msg: format!("Invalid number literal -> {raw_number:?}"),
                         });
                     }
                 } else if (self.ch.is_ascii_alphabetic() || is_bn_char(self.ch))
@@ -353,10 +354,10 @@ impl<'a> Lexer<'a> {
                     let id = self.read_identifier();
 
                     if let Some(kw) = lookup_ident(id.as_str()) {
-                        return Ok(Token::new(kw, id, colno, lineno));
+                        return Ok(Rc::new(Token::new(kw, id, colno, lineno)));
                     }
 
-                    return Ok(Token::new(TokenType::Ident, id, colno, lineno));
+                    return Ok(Rc::new(Token::new(TokenType::Ident, id, colno, lineno)));
                 } else {
                     result = Token::new(
                         TokenType::Illegal,
@@ -369,6 +370,6 @@ impl<'a> Lexer<'a> {
             }
         };
         self.read_char();
-        Ok(result)
+        Ok(Rc::new(result))
     }
 }

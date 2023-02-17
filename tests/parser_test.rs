@@ -9,7 +9,7 @@ fn validate_ast(input: &str, expected: &str) {
     let lx = Lexer::new(input);
     let mut p = Parser::new(lx);
     let prog = p.parse_program();
-    result = prog.to_string();
+    result = prog.expect("parsed AST has errors").to_string();
     assert_eq!(ex, result)
 }
 

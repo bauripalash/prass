@@ -89,7 +89,7 @@ impl Display for Object {
         let mut result = String::new();
         match self {
             Self::Number { token: _, value } => result.push_str(&value.to_string()),
-            Self::String { token: _, value } => result.push_str(&value),
+            Self::String { token: _, value } => result.push_str(value),
             Self::Bool { token: _, value } => result.push_str(&value.to_string()),
             Self::Array { token: _, value } => {
                 for item in value.iter() {
@@ -101,7 +101,7 @@ impl Display for Object {
                 //println!("{:?}" , pairs);
                 //for p in pairs.values(){
                 for (_, v) in pairs.iter() {
-                    result.push_str(format!("{}, ", v).as_str())
+                    result.push_str(format!("{v}, ").as_str())
                     //result.push_str(format!("{}:{},", p.key , p.value).as_str())
                 }
             }

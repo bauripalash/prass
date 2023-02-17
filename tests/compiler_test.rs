@@ -8,7 +8,7 @@ fn check_compiler_instr(src: &str, output: &str) {
     let prog = p.parse_program();
 
     let mut cm = Compiler::new();
-    let bc = cm.compile(prog);
+    let bc = cm.compile(prog.expect("parsed AST has errors"));
     assert_eq!(bc.instructions.to_string(), output.to_string())
 }
 

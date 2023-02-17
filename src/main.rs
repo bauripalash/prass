@@ -1,6 +1,8 @@
 use std::process::exit;
 
-use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
+//use pras::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm};
+use pras::lexer::Lexer;
+use pras::parser::Parser;
 
 fn main() {
     /* let src_x = "
@@ -54,24 +56,26 @@ fn main() {
     let a = Lexer::new("jodi (true) tahole 1 nahole 2 sesh");
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
-    println!("{}", parsed_program);
-    if !parser.errors.is_empty() {
-        //for err in &parser.errors {
-        //    println!("Err => {}", err.msg);
-        //}
+    //println!("{}", parsed_program.expect());
+    if let Ok(ast) = parsed_program {
+        println!("{ast}");
+    } else {
+        for err in &parser.errors {
+            println!("Err => {}", err.msg);
+        }
         parser.print_errorrs();
         //panic!("please fix parser errors");
         exit(1);
     }
 
-    let mut cm = Compiler::new();
-    let c = cm.compile(parsed_program);
-    println!("{}", c.instructions);
+    //let mut cm = Compiler::new();
+    //let c = cm.compile(parsed_program);
+    //println!("{}", c.instructions);
 
     //  for item in &c.constants{
     //     println!("con->{item}");
     //}
-    let mut v = Vm::new(c);
-    v.run();
-    println!("result->{}", v.last_pop());
+    //let mut v = Vm::new(c);
+    //v.run();
+    //println!("result->{}", v.last_pop());
 }

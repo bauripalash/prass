@@ -31,7 +31,7 @@ impl ErrorHelper {
 
     pub fn show_error(&self, token: &Token) -> String {
         let line: String =
-            self.source.split("\n").collect::<Vec<&str>>()[token.lineno - 1].to_string();
+            self.source.split('\n').collect::<Vec<&str>>()[token.lineno - 1].to_string();
         format!("{} |{}", token.lineno, line)
     }
 }
