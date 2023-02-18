@@ -1,7 +1,10 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use pras::{lexer, parser::{self, Parser}};
+use pras::{
+    lexer,
+    parser::{self, Parser},
+};
 
-pub static INPUT : &str = "
+pub static INPUT: &str = "
     dhori fib = ekti kaj(x)
         jodi (x == 0) tahole
             ferao(0)
@@ -17,20 +20,16 @@ pub static INPUT : &str = "
     #dekhao(fib(22),1,2,3,4)";
 
 fn parser_bench(p: &mut Parser) {
-p.parse_program().expect("parser_error");    //while !l.is_at_eof() {
-    //    l.next_token();
-    //}
+    p.parse_program().expect("parser_error"); //while !l.is_at_eof() {
+                                              //    l.next_token();
+                                              //}
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
     let lx = lexer::Lexer::new(INPUT);
     let mut p = parser::Parser::new(lx);
-    c.bench_function("parser_if_else", |b| {
-        b.iter(|| {
-            parser_bench(black_box(
-            &mut p
-            ))
-        })
+    c.bench_function("parse_fib_10", |b| {
+        b.iter(|| parser_bench(black_box(&mut p)))
     });
 }
 

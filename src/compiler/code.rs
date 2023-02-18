@@ -60,8 +60,11 @@ impl Display for Bytecode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut result = String::new();
 
-        result.push_str(&format!("Instructions:\n{}\n\nConstants:{:?}\n" , self.instructions , self.constants));
-        write!(f , "{result}")
+        result.push_str(&format!(
+            "Instructions:\n{}\n\nConstants:{:?}\n",
+            self.instructions, self.constants
+        ));
+        write!(f, "{result}")
     }
 }
 

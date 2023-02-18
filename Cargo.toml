@@ -20,3 +20,7 @@ harness = false
 [[bench]]
 name = "compiler_bench"
 harness = false
+
+[[bench]]
+name = "vm_bench"
+harness = false

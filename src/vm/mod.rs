@@ -10,8 +10,8 @@ use crate::{
 
 use self::frame::Frame;
 
-const STACK_SIZE: usize = 2048;
-const GLOBALS_SIZE: usize = 1024; //Change
+static STACK_SIZE: usize = 2048;
+static GLOBALS_SIZE: usize = 1024; //Change
 static FRAMES_SIZE: usize = 1024;
 
 const TRUE: Object = Object::Bool {
@@ -44,7 +44,6 @@ pub struct Vm {
 
 impl Vm {
     pub fn new(bc: Bytecode) -> Self {
-        
         let main_cl = Closure::new(bc.instructions);
         let main_frame = Frame::new(main_cl, 0);
         let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
@@ -276,7 +275,7 @@ impl Vm {
 
     fn push_closure(&mut self, index: usize, num_free: usize) {
         let obj = &self.constants[index];
-        
+
         let Object::Compfunc(cf) = obj.as_ref() else{
             panic!("not fun");
         };

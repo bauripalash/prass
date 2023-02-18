@@ -1,9 +1,9 @@
-use std::{rc::Rc, cell::RefCell};
 use crate::{
     ast,
     obj::{CompFunc, Object},
     token::{Token, TokenType},
 };
+use std::{cell::RefCell, rc::Rc};
 
 use self::{
     code::{get_def, make_ins, u8_to_op, Bytecode, Instructions, Opcode},
@@ -62,7 +62,7 @@ impl Compiler {
             last_ins: EmittedIns::new(),
             prev_ins: EmittedIns::new(),
         };
-        
+
         Self {
             symtab: Rc::new(RefCell::new(symtab::Table::new())),
             constants: Vec::new(),
@@ -87,15 +87,15 @@ impl Compiler {
         self.bytecode()
     }
 
-    fn sym_define(&mut self , name :&str) -> Rc<Symbol> {
+    fn sym_define(&mut self, name: &str) -> Rc<Symbol> {
         self.symtab.borrow_mut().define(name)
     }
 
-    fn sym_resolve(&mut self , name :&str) -> Result<Rc<Symbol> ,bool > {
+    fn sym_resolve(&mut self, name: &str) -> Result<Rc<Symbol>, bool> {
         self.symtab.borrow_mut().resolve(name.to_string())
     }
 
-    fn sym_define_fun(&mut self , name :&str) -> Rc<Symbol> {
+    fn sym_define_fun(&mut self, name: &str) -> Rc<Symbol> {
         self.symtab.borrow_mut().define_func(name.to_string())
     }
 
@@ -436,10 +436,10 @@ impl Compiler {
             prev_ins: EmittedIns::new(),
         };
 
-//        self.symtab = Rc::new(
-//                RefCell::new(Table::new_enclosed(Rc::new(self.symtab.borrow())))
-//            );
-//
+        //        self.symtab = Rc::new(
+        //                RefCell::new(Table::new_enclosed(Rc::new(self.symtab.borrow())))
+        //            );
+        //
         self.symtab = Rc::new(RefCell::new(Table::new_enclosed(self.symtab.borrow())));
         self.scopes.push(scope);
 
@@ -450,8 +450,8 @@ impl Compiler {
         let ins = self.current_ins().clone();
         self.scopes = self.scopes[..self.scopes.len() - 1].to_vec();
         self.scope_index -= 1;
-        
-        let x = self.symtab.borrow().get_outer_no_check();      
+
+        let x = self.symtab.borrow().get_outer_no_check();
         self.symtab = Rc::new(RefCell::new(x));
 
         ins

@@ -1,5 +1,11 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use pras::{ast::Program, compiler::Compiler, lexer, parser};
+use pras::{
+    compiler::{code::Bytecode, Compiler},
+    lexer,
+    obj::Object,
+    parser,
+    vm::Vm,
+};
 
 pub static INPUT: &str = "
     dhori fib = ekti kaj(x)
@@ -16,8 +22,19 @@ pub static INPUT: &str = "
     fib(10)
     #dekhao(fib(22),1,2,3,4)";
 
-fn compiler_bench(prog: Program, cm: &mut Compiler) {
-    cm.compile(prog);
+fn compiler_bench(bc: &Bytecode) {
+    let mut vm = Vm::new(bc.to_owned());
+    vm.run();
+
+    let lp = vm.last_pop();
+
+    assert_eq!(
+        lp,
+        Object::Number {
+            token: None,
+            value: pras::token::NumberToken::Int(55)
+        }
+    )
 
     //while !l.is_at_eof() {
     //    l.next_token();
@@ -31,9 +48,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         .parse_program()
         .expect("parser error on fibonacci benchmark");
     let mut com = Compiler::new();
-    c.bench_function("compile_fib_10", |b| {
-        b.iter(|| compiler_bench(black_box(prog.clone()), black_box(&mut com)))
-    });
+    let bc = com.compile(prog);
+    c.bench_function("vm_fib_10", |b| b.iter(|| compiler_bench(black_box(&bc))));
 }
 
 criterion_group!(benches, criterion_benchmark);

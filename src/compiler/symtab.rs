@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc, cell::Ref};
+use std::{cell::Ref, collections::HashMap, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Scope {
@@ -43,16 +43,14 @@ impl Table {
         }
     }
 
-    pub fn new_enclosed_noref(outer : Rc<Self>) -> Self{
-            Self{
-                outer : Some(outer),
-                store : HashMap::new(),
-                numdef : 0,
-                free_syms : Vec::new()
-            }
+    pub fn new_enclosed_noref(outer: Rc<Self>) -> Self {
+        Self {
+            outer: Some(outer),
+            store: HashMap::new(),
+            numdef: 0,
+            free_syms: Vec::new(),
+        }
     }
-
-    
 
     pub fn get_outer(&self) -> Option<Self> {
         if let Some(o) = &self.outer {
@@ -62,7 +60,7 @@ impl Table {
         None
     }
 
-    pub fn get_outer_no_check(&self) -> Self{
+    pub fn get_outer_no_check(&self) -> Self {
         self.outer.as_ref().unwrap().as_ref().clone()
     }
 
@@ -70,10 +68,14 @@ impl Table {
         let sm = Rc::new(Symbol {
             name: name.to_string(),
             index: self.numdef,
-            scope: if self.outer.is_some() { Scope::Local } else { Scope::default() } ,
+            scope: if self.outer.is_some() {
+                Scope::Local
+            } else {
+                Scope::default()
+            },
         });
 
-        self.store.insert(name.to_string() , sm.clone());
+        self.store.insert(name.to_string(), sm.clone());
         self.numdef += 1;
         sm
     }
@@ -96,7 +98,6 @@ impl Table {
         });
         self.store.insert(org.name.clone(), sm.clone());
         sm
-        
     }
 
     pub fn resolve(&mut self, name: String) -> Result<Rc<Symbol>, bool> {
@@ -139,7 +140,8 @@ mod tests {
                 name: "a".to_string(),
                 scope: Scope::Global,
                 index: 0
-            }.into()
+            }
+            .into()
         );
     }
 
@@ -156,7 +158,8 @@ mod tests {
                 scope: Scope::Global,
                 index: 0,
                 name: "a".to_owned()
-            }.into()
+            }
+            .into()
         );
         tt.define("c");
         let rs = tt.resolve("c".to_string()).expect("expected to resolve");
@@ -166,13 +169,17 @@ mod tests {
                 scope: Scope::Local,
                 index: 0,
                 name: "c".to_owned()
-            }.into()
+            }
+            .into()
         );
-        tt.define_free(Symbol {
-            name: "d".to_string(),
-            scope: Scope::Free,
-            index: 4,
-        }.into());
+        tt.define_free(
+            Symbol {
+                name: "d".to_string(),
+                scope: Scope::Free,
+                index: 4,
+            }
+            .into(),
+        );
         let rs = tt.resolve("d".to_string()).expect("expected to resolve");
         assert_eq!(
             rs,
@@ -180,7 +187,8 @@ mod tests {
                 scope: Scope::Free,
                 index: 0,
                 name: "d".to_owned()
-            }.into()
+            }
+            .into()
         );
     }
 }

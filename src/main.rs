@@ -7,7 +7,6 @@ use pras::parser::Parser;
 use pras::vm::Vm;
 
 fn main() {
-
     let fib = "
     dhori fib = ekti kaj(x)
         jodi (x == 0) tahole
@@ -24,8 +23,6 @@ fn main() {
     #dekhao(fib(22),1,2,3,4)
         ";
 
-
-
     let a = Lexer::new(fib);
     //let a = Lexer::new(fib);
     let mut parser = Parser::new(a);
@@ -35,7 +32,7 @@ fn main() {
         println!("parse done!");
         let mut comp = Compiler::new();
         comp.compile(ast);
-        println!("{}" , comp.bytecode());
+        println!("{}", comp.bytecode());
 
         let mut v = Vm::new(comp.bytecode());
         v.run();
@@ -47,7 +44,6 @@ fn main() {
         //panic!("please fix parser errors");
         exit(1);
     }
-
 
     //  for item in &c.constants{
     //     println!("con->{item}");

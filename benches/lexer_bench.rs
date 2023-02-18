@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use pras::lexer;
 
-pub static INPUT : &str = "
+pub static INPUT: &str = "
     dhori fib = ekti kaj(x)
         jodi (x == 0) tahole
             ferao(0)
@@ -24,13 +24,7 @@ fn lexer_bench(s: &str) {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("lexer_let_1p2", |b| {
-        b.iter(|| {
-            lexer_bench(black_box(
-              INPUT 
-            ))
-        })
-    });
+    c.bench_function("lexer_fib_10", |b| b.iter(|| lexer_bench(black_box(INPUT))));
 }
 
 criterion_group!(benches, criterion_benchmark);
