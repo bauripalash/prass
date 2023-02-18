@@ -1,9 +1,5 @@
 use std::fmt::Display;
-use std::io::Cursor;
 use std::rc::Rc;
-
-use byteorder::{self, ReadBytesExt, WriteBytesExt};
-use byteorder::{BigEndian, ByteOrder};
 
 use crate::obj::Object;
 
@@ -125,23 +121,42 @@ pub fn make_ins(op: Opcode, ops: &[usize]) -> Vec<u8> {
     let def = get_def(&op).op_width;
     for (o, w) in ops.iter().zip(def) {
         match w {
-            2 => ins.write_u16::<BigEndian>(*o as u16).unwrap(),
-            1 => ins.write_u8(*o as u8).unwrap(),
-            _ => panic!("unsupported op width"),
+            2 => ins.extend_from_slice(&(*o as u16).to_be_bytes()), //ins.write_u16::<BigEndian>(*o as u16).unwrap(),
+            1 => ins.extend_from_slice(&(*o as u8).to_be_bytes()), //ins.write_u8(*o as u8).unwrap(),
+            _ => {
+                //let x = *o as u16;
+                //let y : Vec<u8>  = x.to_be_bytes();
+                panic!("unsupported op width")
+            }
         }
     }
 
     ins
 }
 
+pub fn read_u16(insts: &[u8]) -> Result<u16, bool> {
+    if insts.len() >= 2 {
+        let (int_bytes, _) = insts.split_at(std::mem::size_of::<u16>());
+        Ok(u16::from_be_bytes(int_bytes.try_into().unwrap()))
+    } else {
+        Err(false)
+        //panic!("u16 can not be built from supplied vector")
+    }
+}
+
 pub fn read_operands(def: &OpDef, ins: Vec<u8>) -> (Vec<usize>, usize) {
     let mut ops: Vec<usize> = Vec::with_capacity(def.op_width.len());
+
     let mut offset = 0;
 
     for wd in &def.op_width {
         match wd {
             2 => {
-                ops.push(BigEndian::read_u16(&ins[offset..offset + 2]) as usize);
+                //ops.push(BigEndian::read_u16(&ins[offset..offset + 2]) as usize);
+                ops.push(
+                    read_u16(&ins[offset..offset + 2]).expect("failed to read operands as u16")
+                        as usize,
+                );
                 offset += 2;
             }
             1 => {
@@ -211,21 +226,26 @@ impl Instructions {
     }
 
     pub fn read_uint16(insts: Vec<u8>, start: usize) -> u16 {
-        let mut tc = Cursor::new(insts[start..].to_vec());
+        //        let mut tc = Cursor::new(insts[start..].to_vec());
 
-        if let Ok(v) = tc.read_u16::<BigEndian>() {
-            return v;
+        //      if let Ok(v) = tc.read_u16::<BigEndian>() {
+        //          return v;
+        //      }
+
+        if insts.len() >= 2 {
+            let (int_bytes, _) = insts[start..].split_at(std::mem::size_of::<u16>());
+            u16::from_be_bytes(int_bytes.try_into().unwrap())
+        } else {
+            panic!("u16 can not be built from supplied vector")
         }
-
-        0
     }
 
     pub fn read_u8(insts: &Vec<u8>) -> u8 {
-        let mut tc = Cursor::new(insts);
-        if let Ok(v) = tc.read_u8() {
-            return v;
+        //let mut tc = Cursor::new(insts);
+        if !insts.is_empty() {
+            insts[0]
+        } else {
+            panic!("supplied vec<u8> is empty")
         }
-
-        0
     }
 }

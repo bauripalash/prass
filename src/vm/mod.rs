@@ -22,6 +22,7 @@ const FALSE: Object = Object::Bool {
     token: None,
     value: false,
 };
+
 const NULL: Object = Object::Null;
 
 const fn bool_native_to_obj(b: bool) -> Object {
@@ -40,6 +41,7 @@ pub struct Vm {
     globals: Vec<Object>,
     frames: Vec<Frame>,
     frame_index: usize,
+    last_popped: Rc<Object>,
 }
 
 impl Vm {
@@ -50,11 +52,12 @@ impl Vm {
         frames[0] = main_frame;
         Self {
             constants: bc.constants,
-            stack: vec![Object::Null; STACK_SIZE],
+            stack: Vec::with_capacity(STACK_SIZE), //vec![Object::Null; STACK_SIZE],
             globals: vec![Object::Null; GLOBALS_SIZE],
             sp: 0,
             frames,
             frame_index: 1,
+            last_popped: Rc::new(NULL),
         }
     }
 
@@ -92,13 +95,20 @@ impl Vm {
         self.current_frame_mut().ip = t as i64
     }
 
+    fn loop_cur_frame(&self) -> bool {
+        let curframe = self.current_frame();
+        (curframe.ip as usize) < curframe.get_instructions().ins.len() - 1
+    }
+
     pub fn run(&mut self) {
         let mut ip: usize;
         let mut ins: Rc<Instructions>;
         let mut op: code::Opcode;
+        //        let curframe = self.current_frame();
         while self.current_frame().ip
             < (self.current_frame().get_instructions().ins.len() as i64) - 1
         {
+            //while self.loop_cur_frame() {
             //self.current_frame_mut().ip += 1;
             self.adv_ip(1);
             ip = self.current_frame().ip as usize;
@@ -119,7 +129,7 @@ impl Vm {
                     self.adv_ip(2);
                 }
                 code::Opcode::Pop => {
-                    self.pop();
+                    self.last_popped = Rc::new(self.pop());
                 }
                 code::Opcode::Add
                 | code::Opcode::Sub
@@ -252,7 +262,7 @@ impl Vm {
                     let mut i = 0;
 
                     //                    let mut objs: Vec<Object> = Vec::new();
-                    let mut result: Vec<String> = vec![];
+                    let mut result: Vec<String> = Vec::with_capacity(num_items);
 
                     while i < num_items {
                         result.push(self.pop().to_string());
@@ -279,10 +289,13 @@ impl Vm {
         let Object::Compfunc(cf) = obj.as_ref() else{
             panic!("not fun");
         };
-        let mut fr: Vec<Rc<Object>> = vec![NULL.into(); num_free];
+        let mut fr: Vec<Rc<Object>> = Vec::with_capacity(num_free); //vec![NULL.into(); num_free];
         let mut i = 0;
         while i < num_free {
-            fr[i] = self.stack[self.sp - num_free + i].clone().into();
+            //fr[i] = self.stack[self.sp - num_free + i].clone().into();
+            fr.push(Rc::new(
+                self.stack.get(self.sp - num_free + i).unwrap().to_owned(),
+            ));
             i += 1;
         }
 
@@ -297,9 +310,23 @@ impl Vm {
 
     fn call_func(&mut self, num_args: usize) {
         let stack_object = &self.stack[self.sp - 1 - num_args].clone();
+        //println!("STACK-OBJ{:?}" , stack_object);
+        //let Object::Closure(cf) = stack_object else{
+        //                panic!("stack object is not compiled function")
+        //            } ;
         let Object::Closure(cf) = stack_object else{
-                        panic!("stack object is not compiled function")
-                    } ;
+                println!("not closure");
+                if let Object::Closure(lcf) = self.last_pop(){
+
+                    self.call_closure(lcf, num_args);
+                    return;
+
+                };
+
+                    panic!("not closure -> panic");
+
+        };
+
         self.call_closure(cf.clone(), num_args);
     }
 
@@ -559,19 +586,39 @@ impl Vm {
         if self.sp >= STACK_SIZE {
             panic!("stack overflow");
         }
-
-        self.stack[self.sp] = obj.clone();
+        if self.sp >= self.stack.len() {
+            self.stack.push(obj.to_owned())
+        } else {
+            self.stack[self.sp] = obj.to_owned()
+        }
+        //self.stack[self.sp] = obj.clone();
+        //self.stack.push(obj.to_owned());
         self.sp += 1;
     }
 
     fn pop(&mut self) -> Object {
         let ip = self.sp - 1;
+        //let obj = &self.stack[ip];
+        //
+        if self.sp == self.stack.len() {
+            self.sp -= 1;
+            return self.stack.pop().expect("stack is empty");
+        }
+
+        //let obj = self.stack.pop().unwrap();
         let obj = &self.stack[ip];
         self.sp -= 1;
         obj.clone()
     }
 
     pub fn last_pop(&self) -> Object {
-        self.stack[self.sp].clone()
+        self.last_popped.as_ref().to_owned()
+        //println!("LAST-POP->{:?}->{:?}" , self.stack , self.last_popped);
+        //if let Some(lp) = self.stack.get(self.sp){
+        //    return lp.to_owned()
+        //}else{
+        //    return self.last_popped.as_ref().to_owned()
+        //}
+        //self.stack[self.sp].clone()
     }
 }

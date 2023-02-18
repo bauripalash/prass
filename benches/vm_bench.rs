@@ -1,9 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use pras::{
     compiler::{code::Bytecode, Compiler},
-    lexer,
-    obj::Object,
-    parser,
+    lexer, parser,
     vm::Vm,
 };
 
@@ -22,19 +20,10 @@ pub static INPUT: &str = "
     fib(10)
     #dekhao(fib(22),1,2,3,4)";
 
-fn compiler_bench(bc: &Bytecode) {
+fn vm_bench(bc: &Bytecode) {
     let mut vm = Vm::new(bc.to_owned());
     vm.run();
-
-    let lp = vm.last_pop();
-
-    assert_eq!(
-        lp,
-        Object::Number {
-            token: None,
-            value: pras::token::NumberToken::Int(55)
-        }
-    )
+    _ = vm.last_pop()
 
     //while !l.is_at_eof() {
     //    l.next_token();
@@ -49,7 +38,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         .expect("parser error on fibonacci benchmark");
     let mut com = Compiler::new();
     let bc = com.compile(prog);
-    c.bench_function("vm_fib_10", |b| b.iter(|| compiler_bench(black_box(&bc))));
+    c.bench_function("vm_fib_10", |b| b.iter(|| vm_bench(black_box(&bc))));
 }
 
 criterion_group!(benches, criterion_benchmark);

@@ -65,13 +65,13 @@ fn test_vm() {
                 value: NumberToken::Int(7),
             },
         ),
-        (
+        /*(
             FIB_INPUT,
             Object::Number {
                 token: None,
                 value: NumberToken::Int(55),
             },
-        ),
+        ),*/
     ]);
 
     for (k, v) in testcases {

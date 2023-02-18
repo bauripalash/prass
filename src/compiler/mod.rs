@@ -149,7 +149,7 @@ impl Compiler {
     pub fn compiler_expr(&mut self, expr: &ast::Expr) {
         match expr {
             ast::Expr::IdentExpr { token: _, value } => {
-                let sm = self.sym_resolve(&value);
+                let sm = self.sym_resolve(value);
 
                 if let Ok(s) = sm {
                     self.load_symbol(&s);

@@ -19,12 +19,13 @@ fn main() {
             sesh 
         sesh 
     sesh
-    dekhao(fib(35))
+    dekhao(fib(20))
     #dekhao(fib(22),1,2,3,4)
         ";
 
+    //let a = Lexer::new("ekti kaj(x) x+1 sesh(2)");
+    //let a = Lexer::new("ekti kaj(x) 100 + x * 9 sesh(9) ");
     let a = Lexer::new(fib);
-    //let a = Lexer::new(fib);
     let mut parser = Parser::new(a);
     let parsed_program = parser.parse_program();
     //println!("{}", parsed_program.expect());
@@ -36,6 +37,8 @@ fn main() {
 
         let mut v = Vm::new(comp.bytecode());
         v.run();
+        //println!("{:?} -> {:?}" , v.constants , v.stack);
+        println!("{:?}", v.last_pop());
     } else {
         //for err in &parser.errors {
         //    println!("Err => {}", err.msg);
