@@ -34,6 +34,7 @@ fn check_last_item(input: &str, output: Object) {
 
     match output {
         Object::Number { token: _, value } => match_number(&lp, &value),
+        Object::String { token: _, value } => match_string(&lp, &value),
 
         _ => {}
     }
@@ -42,14 +43,22 @@ fn check_last_item(input: &str, output: Object) {
 
 fn match_number(from_vm: &Object, to_check: &NumberToken) {
     let Object::Number { token : _, value } = from_vm else{
-        panic!("from_vm is not a number!")
+        panic!("from_vm is not a number!");
    };
 
     assert_eq!(value, to_check)
 }
 
+fn match_string(from_vm: &Object, to_check: &str) {
+    let Object::String { token : _, value } = from_vm else{
+        panic!("from_vm is not string");
+    };
+
+    assert_eq!(value, to_check)
+}
+
 #[test]
-fn test_vm() {
+fn test_vm_numbers() {
     let testcases = HashMap::from([
         (
             "1+2",
@@ -65,13 +74,30 @@ fn test_vm() {
                 value: NumberToken::Int(7),
             },
         ),
-        /*(
-            FIB_INPUT,
-            Object::Number {
+    ]);
+
+    for (k, v) in testcases {
+        check_last_item(k, v)
+    }
+}
+
+#[test]
+fn test_vm_string() {
+    let testcases = HashMap::from([
+        (
+            "\"1\"+\"2\"",
+            Object::String {
                 token: None,
-                value: NumberToken::Int(55),
+                value: "12".to_string(),
             },
-        ),*/
+        ),
+        (
+            "\"hello\"",
+            Object::String {
+                token: None,
+                value: String::from("hello"),
+            },
+        ),
     ]);
 
     for (k, v) in testcases {

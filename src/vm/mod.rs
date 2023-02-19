@@ -1,4 +1,9 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    rc::Rc,
+};
 
 pub mod frame;
 
@@ -11,7 +16,7 @@ use crate::{
 use self::frame::Frame;
 
 static STACK_SIZE: usize = 2048;
-static GLOBALS_SIZE: usize = 1024; //Change
+const GLOBALS_SIZE: usize = 1024; //Change
 static FRAMES_SIZE: usize = 1024;
 
 const TRUE: Object = Object::Bool {
@@ -33,27 +38,86 @@ const fn bool_native_to_obj(b: bool) -> Object {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Vm {
     constants: Vec<Rc<Object>>,
     stack: Vec<Object>,
     sp: usize,
-    globals: Vec<Object>,
+    globals: GlobalStack, //Rc<RefCell<[Object]>>,
     frames: Vec<Frame>,
     frame_index: usize,
     last_popped: Rc<Object>,
 }
 
+#[derive(Debug)]
+struct FramePool {
+    pub frames: RefCell<Vec<Rc<RefCell<Frame>>>>,
+    pub len: usize,
+}
+
+#[derive(Debug)]
+struct GlobalStack {
+    pub globals: RefCell<Vec<Rc<Object>>>,
+    pub len: usize,
+}
+
+impl GlobalStack {
+    pub fn new() -> Self {
+        Self {
+            globals: RefCell::new(Vec::with_capacity(GLOBALS_SIZE)),
+            len: 0,
+        }
+    }
+    pub fn push_value(&mut self, index: usize, obj: Rc<Object>) {
+        if index >= self.len {
+            self.globals.borrow_mut().push(obj);
+            self.len += 1;
+        } else {
+            self.globals.borrow_mut()[index] = obj;
+        }
+    }
+
+    pub fn get_value(&self, index: usize) -> Rc<Object> {
+        if index >= self.len || index > GLOBALS_SIZE {
+            Rc::new(Object::Null)
+        } else {
+            Rc::clone(&self.globals.borrow_mut()[index])
+        }
+    }
+}
+
+impl FramePool {
+    pub fn new() -> Self {
+        Self {
+            frames: RefCell::new(Vec::with_capacity(FRAMES_SIZE)),
+            len: 0,
+        }
+    }
+
+    pub fn push_frame(&mut self, index: usize, frame: Frame) {
+        if index >= self.len {
+            self.frames.borrow_mut().push(Rc::new(RefCell::new(frame)))
+        } else {
+            self.frames.borrow_mut()[index] = Rc::new(RefCell::new(frame))
+        }
+    }
+
+    pub fn get_frame(&self, index: usize) -> Rc<RefCell<Frame>> {
+        Rc::clone(&self.frames.borrow_mut()[index])
+    }
+}
+
 impl Vm {
     pub fn new(bc: Bytecode) -> Self {
-        let main_cl = Closure::new(bc.instructions);
+        let main_cl = Rc::new(Closure::new(bc.instructions));
         let main_frame = Frame::new(main_cl, 0);
         let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
         frames[0] = main_frame;
+        //let gl = Rc::new(RefCell::new([NULL;GLOBALS_SIZE]));
         Self {
             constants: bc.constants,
             stack: Vec::with_capacity(STACK_SIZE), //vec![Object::Null; STACK_SIZE],
-            globals: vec![Object::Null; GLOBALS_SIZE],
+            globals: GlobalStack::new(),           //vec![Object::Null; GLOBALS_SIZE],
             sp: 0,
             frames,
             frame_index: 1,
@@ -88,39 +152,44 @@ impl Vm {
     }
 
     fn adv_ip(&mut self, by: usize) {
-        self.current_frame_mut().ip += by as i64
+        //self.current_frame_mut().ip += by as i64
+        self.frames[self.frame_index - 1].ip += by as i64
     }
 
     fn set_ip(&mut self, t: usize) {
-        self.current_frame_mut().ip = t as i64
+        //self.current_frame_mut().ip = t as i64
+        self.frames[self.frame_index - 1].ip = t as i64
     }
 
-    fn loop_cur_frame(&self) -> bool {
-        let curframe = self.current_frame();
-        (curframe.ip as usize) < curframe.get_instructions().ins.len() - 1
+    fn get_ip(&self) -> i64 {
+        self.frames[self.frame_index - 1].ip
+    }
+
+    fn get_ins_len(&self) -> i64 {
+        self.frames[self.frame_index - 1].get_ins_len()
     }
 
     pub fn run(&mut self) {
-        let mut ip: usize;
-        let mut ins: Rc<Instructions>;
-        let mut op: code::Opcode;
+        //let mut ip: usize;
+        //let mut ins: Rc<Instructions>;
+        //let mut op: code::Opcode;
         //        let curframe = self.current_frame();
-        while self.current_frame().ip
-            < (self.current_frame().get_instructions().ins.len() as i64) - 1
+        while self.get_ip() < self.get_ins_len() - 1
+        //< (self.current_frame().get_instructions().ins.len() as i64) - 1
         {
             //while self.loop_cur_frame() {
             //self.current_frame_mut().ip += 1;
             self.adv_ip(1);
-            ip = self.current_frame().ip as usize;
-            ins = self.current_frame().get_instructions();
-            op = code::u8_to_op(ins.ins[ip]);
+            let ip = self.current_frame().ip as usize;
+            let ins = self.current_frame().get_instructions();
+            let op = code::u8_to_op(ins.ins[ip]);
 
             //println!("{:?}", op);
 
             match op {
                 code::Opcode::Const => {
                     let op_ins = &ins.ins;
-                    let con_index = Instructions::read_uint16(op_ins.to_vec(), ip + 1) as usize;
+                    let con_index = Instructions::read_uint16(op_ins, ip + 1) as usize;
                     let con_obj = &self.constants[con_index].clone();
                     self.push(con_obj);
 
@@ -146,26 +215,29 @@ impl Vm {
                 code::Opcode::Minus => self.exe_pref_minux(),
                 code::Opcode::Null => self.push(&NULL),
                 code::Opcode::SetGlobal => {
-                    let gi = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    let gi = code::Instructions::read_uint16(&ins.ins, ip + 1) as usize;
                     //ip += 2;
                     self.adv_ip(2);
-                    self.globals[gi] = self.pop()
+                    //self.globals[gi] = self.pop()
+                    let pop_item = Rc::new(self.pop());
+                    self.globals.push_value(gi, pop_item);
                 }
                 code::Opcode::GetGlobal => {
-                    let gi = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    let gi = code::Instructions::read_uint16(&ins.ins, ip + 1) as usize;
                     //ip += 2;
                     self.adv_ip(2);
 
-                    self.push(&self.globals[gi].clone())
+                    //self.push(&self.globals[gi].clone())
+                    self.push(&self.globals.get_value(gi))
                 }
                 code::Opcode::Jump => {
-                    let pos = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1);
+                    let pos = code::Instructions::read_uint16(&ins.ins, ip + 1);
                     //ip = (pos - 1) as usize
                     self.set_ip((pos - 1) as usize)
                 }
 
                 code::Opcode::JumpNotTruthy => {
-                    let pos = code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    let pos = code::Instructions::read_uint16(&ins.ins, ip + 1) as usize;
 
                     //ip += 2;
                     self.adv_ip(2);
@@ -178,8 +250,7 @@ impl Vm {
                     }
                 }
                 code::Opcode::Array => {
-                    let num_of_elms =
-                        code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    let num_of_elms = code::Instructions::read_uint16(&ins.ins, ip + 1) as usize;
                     //ip += 2;
                     self.adv_ip(2);
 
@@ -189,8 +260,7 @@ impl Vm {
                 }
 
                 code::Opcode::Hash => {
-                    let num_of_elms =
-                        code::Instructions::read_uint16(ins.ins.to_vec(), ip + 1) as usize;
+                    let num_of_elms = code::Instructions::read_uint16(&ins.ins, ip + 1) as usize;
                     //ip += 2;
                     self.adv_ip(2);
 
@@ -237,7 +307,7 @@ impl Vm {
                     self.call_func(num_args as usize);
                 }
                 code::Opcode::Closure => {
-                    let const_index = code::Instructions::read_uint16(ins.ins.clone(), ip + 1);
+                    let const_index = code::Instructions::read_uint16(&ins.ins, ip + 1);
                     let num_free = code::Instructions::read_u8(&ins.ins[ip + 3..].to_vec());
 
                     self.adv_ip(3);
@@ -289,6 +359,7 @@ impl Vm {
         let Object::Compfunc(cf) = obj.as_ref() else{
             panic!("not fun");
         };
+
         let mut fr: Vec<Rc<Object>> = Vec::with_capacity(num_free); //vec![NULL.into(); num_free];
         let mut i = 0;
         while i < num_free {
@@ -301,10 +372,10 @@ impl Vm {
 
         self.sp -= num_free;
 
-        let cls = &Object::Closure(Closure {
+        let cls = &Object::Closure(Rc::new(Closure {
             fun: cf.clone(),
             frees: fr,
-        });
+        }));
         self.push(cls);
     }
 
@@ -330,7 +401,7 @@ impl Vm {
         self.call_closure(cf.clone(), num_args);
     }
 
-    fn call_closure(&mut self, cal: Closure, num_args: usize) {
+    fn call_closure(&mut self, cal: Rc<Closure>, num_args: usize) {
         if cal.fun.num_params != num_args {
             panic!(
                 "arg number and params number is not same| W=>{} G={}",
@@ -514,72 +585,52 @@ impl Vm {
         if right.get_type() == NUMBER_OBJ && left.get_type() == NUMBER_OBJ {
             self.exe_binary_op_number(op, left, right)
         } else if right.get_type() == STRING_OBJ && left.get_type() == STRING_OBJ {
-            self.exe_binary_op_str(op, left, right)
-        }
-    }
+            if op != code::Opcode::Add {
+                panic!("only '+' is supported for strings")
+            }
 
-    fn exe_binary_op_str(&mut self, op: code::Opcode, left: Object, right: Object) {
-        if op != code::Opcode::Add {
-            panic!("unknown string operator : {op:?}")
-        }
-        let lval: Option<String> = if let Object::String { token: _, value } = left {
-            Some(value)
-        } else {
-            None
-        };
-        let rval: Option<String> = if let Object::String { token: _, value } = right {
-            Some(value)
-        } else {
-            None
-        };
+            let Object::String { token : _, value : lval } = left else{
+                panic!("left object is not string")
+            };
 
-        self.push(&Object::String {
-            token: None,
-            value: lval.unwrap() + &rval.unwrap(),
-        })
+            let Object::String { token : _, value : rval } = right else{
+                panic!("left object is not string")
+            };
+
+            self.push(&Object::String {
+                token: None,
+                value: lval + &rval,
+            });
+
+            //            self.exe_binary_op_str(op, left, right)
+        }
     }
 
     fn exe_binary_op_number(&mut self, op: code::Opcode, left: Object, right: Object) {
-        let mut is_float = false;
-        let lval: Option<NumberToken> = if let Object::Number { token: _, value } = left {
-            is_float = value.get_type();
-            Some(value)
-        } else {
-            None
+        let Object::Number { token : _, value } = left else {
+            panic!("not a number")
         };
-        let rval: Option<NumberToken> = if let Object::Number { token: _, value } = right {
-            is_float = value.get_type();
-            Some(value)
-        } else {
-            None
-        };
-        //println!("L->{:?}|R->{:?}" , lval.clone(),rval.clone());
+        let lval = value;
 
-        if is_float {
-            let lfv = lval.unwrap().get_as_f64();
-            let rfv = rval.unwrap().get_as_f64();
-            let value = NumberToken::from(match op {
-                code::Opcode::Add => lfv + rfv,
-                code::Opcode::Sub => lfv - rfv,
-                code::Opcode::Mul => lfv * rfv,
-                code::Opcode::Div => lfv / rfv,
-                code::Opcode::Mod => lfv % rfv,
-                _ => 0.0,
-            });
-            self.push(&Object::Number { token: None, value });
-        } else {
-            let lfv = lval.unwrap().get_as_i64();
-            let rfv = rval.unwrap().get_as_i64();
-            let value = NumberToken::from(match op {
-                code::Opcode::Add => lfv + rfv,
-                code::Opcode::Sub => lfv - rfv,
-                code::Opcode::Mul => lfv * rfv,
-                code::Opcode::Div => lfv / rfv,
-                code::Opcode::Mod => lfv % rfv,
-                _ => 0,
-            });
-            self.push(&Object::Number { token: None, value });
+        let Object::Number { token : _, value } = right else {
+            panic!("rval is not a number")
+        };
+
+        let rval = value;
+        let value: NumberToken;
+
+        match op {
+            code::Opcode::Add => value = lval + rval,
+            code::Opcode::Sub => value = lval - rval,
+            code::Opcode::Mul => value = lval * rval,
+            code::Opcode::Div => value = lval / rval,
+            code::Opcode::Mod => value = lval % rval,
+            _ => {
+                panic!("unknown {:?} operator for numbers", op)
+            }
         }
+
+        self.push(&Object::Number { token: None, value });
     }
 
     fn push(&mut self, obj: &Object) {

@@ -1,4 +1,6 @@
 /target
 perf.data
+perf.data.old
+pras.perf
 flamegraph.svg
 

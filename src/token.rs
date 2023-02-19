@@ -1,4 +1,9 @@
-use std::{cmp::Ordering, fmt::Display, hash::Hash};
+use std::{
+    cmp::Ordering,
+    fmt::Display,
+    hash::Hash,
+    ops::{Add, Div, Mul, Rem, Sub},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Token {
@@ -39,7 +44,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NumberToken {
     Float(f64),
     Int(i64),
@@ -54,11 +59,16 @@ impl Display for NumberToken {
     }
 }
 
+/*
 impl PartialEq for NumberToken {
     fn eq(&self, other: &Self) -> bool {
-        self.to_string() == other.to_string()
+       if self.is_int() == other.is_int() {
+            return false;
+       }
+
+       if let
     }
-}
+}*/
 
 impl Eq for NumberToken {}
 
@@ -80,6 +90,85 @@ impl Ord for NumberToken {
     }
 }
 
+impl Add for NumberToken {
+    type Output = NumberToken;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        if let NumberToken::Int(l_int) = self {
+            if let NumberToken::Int(r_int) = rhs {
+                Self::Int(l_int + r_int)
+            } else {
+                let r_fl = rhs.get_as_f64();
+                Self::Float((l_int as f64) + r_fl)
+            }
+        } else {
+            Self::Float(self.get_as_f64() + rhs.get_as_f64())
+            //NumberToken::Float(l_float) = self {
+            //NumberToken::Float(l_float * rhs.get_as_f64())
+        }
+    }
+}
+
+impl Sub for NumberToken {
+    type Output = NumberToken;
+    fn sub(self, rhs: Self) -> Self::Output {
+        self + rhs.make_neg()
+    }
+}
+
+impl Mul for NumberToken {
+    type Output = NumberToken;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        if let NumberToken::Int(l_int) = self {
+            if let NumberToken::Int(r_int) = rhs {
+                Self::Int(l_int * r_int)
+            } else {
+                let r_fl = rhs.get_as_f64();
+                Self::Float((l_int as f64) * r_fl)
+            }
+        } else {
+            Self::Float(self.get_as_f64() * rhs.get_as_f64())
+            //NumberToken::Float(l_float) = self {
+            //NumberToken::Float(l_float * rhs.get_as_f64())
+        }
+    }
+}
+
+impl Div for NumberToken {
+    type Output = NumberToken;
+    fn div(self, rhs: Self) -> Self::Output {
+        if let NumberToken::Float(l_float) = self {
+            Self::Float(l_float / rhs.get_as_f64())
+        } else {
+            let l_int = self.get_as_i64();
+            if let NumberToken::Float(r_flt) = rhs {
+                Self::Float((l_int as f64) / r_flt)
+            } else {
+                NumberToken::Int(l_int / rhs.get_as_i64())
+            }
+        }
+    }
+}
+
+impl Rem for NumberToken {
+    type Output = NumberToken;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        if let NumberToken::Float(l_float) = self {
+            Self::Float(l_float % rhs.get_as_f64())
+        } else {
+            let l_int = self.get_as_i64();
+
+            if let NumberToken::Float(r_float) = rhs {
+                Self::Float((l_int as f64) % r_float)
+            } else {
+                NumberToken::Int(l_int % rhs.get_as_i64())
+            }
+        }
+    }
+}
+
 impl Hash for NumberToken {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
@@ -91,11 +180,16 @@ impl Hash for NumberToken {
 
 impl NumberToken {
     pub const fn get_type(&self) -> bool {
-        match self {
-            Self::Float(..) => true,
-            Self::Int(..) => false,
-        }
+        !self.is_int()
     }
+
+    pub const fn is_int(&self) -> bool {
+        if let Self::Int(..) = self {
+            return true;
+        }
+        false
+    }
+
     pub const fn get_as_f64(&self) -> f64 {
         match self {
             Self::Float(f) => *f,
@@ -124,9 +218,27 @@ impl From<f64> for NumberToken {
     }
 }
 
+impl From<f32> for NumberToken {
+    fn from(value: f32) -> Self {
+        Self::Float(value as f64)
+    }
+}
+
+impl From<i16> for NumberToken {
+    fn from(value: i16) -> Self {
+        Self::Int(value as i64)
+    }
+}
+
 impl From<i64> for NumberToken {
     fn from(value: i64) -> Self {
         Self::Int(value)
+    }
+}
+
+impl From<i32> for NumberToken {
+    fn from(value: i32) -> Self {
+        Self::Int(value as i64)
     }
 }
 

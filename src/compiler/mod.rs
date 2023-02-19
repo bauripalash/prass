@@ -279,11 +279,11 @@ impl Compiler {
                     self.load_symbol(s);
                 }
 
-                let cmp_fn = Rc::new(Object::Compfunc(CompFunc {
+                let cmp_fn = Rc::new(Object::Compfunc(Rc::new(CompFunc {
                     fnin: Rc::new(ins),
                     num_locals,
                     num_params: fun_params.len(),
-                }));
+                })));
                 let con = self.add_const(cmp_fn);
                 self.emit(Opcode::Closure, Some(&vec![con, free_syms.len()]));
             }

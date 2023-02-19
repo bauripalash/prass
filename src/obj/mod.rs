@@ -14,20 +14,20 @@ use crate::{
 
 use self::env::Env;
 
-pub const HASH_OBJ: &str = "hash";
-pub const NUMBER_OBJ: &str = "number";
-pub const BOOL_OBJ: &str = "bool";
-pub const STRING_OBJ: &str = "string";
-pub const ARRAY_OBJ: &str = "array";
-pub const NULL_OBJ: &str = "null";
-pub const RVALUE_OBJ: &str = "rvalue";
-pub const ERR_OBJ: &str = "err";
-pub const BREAK_OBJ: &str = "break";
-pub const FUNC_OBJ: &str = "func";
-pub const INCLUDE_OBJ: &str = "include";
-pub const SHOW_OBJ: &str = "show";
-pub const COMPILED_FUNC_OBJ: &str = "compiled_func";
-pub const CLOSURE_OBJ: &str = "closure";
+pub const HASH_OBJ: u8 = 0;
+pub const NUMBER_OBJ: u8 = 1;
+pub const BOOL_OBJ: u8 = 2;
+pub const STRING_OBJ: u8 = 3;
+pub const ARRAY_OBJ: u8 = 4;
+pub const NULL_OBJ: u8 = 5;
+pub const RVALUE_OBJ: u8 = 6;
+pub const ERR_OBJ: u8 = 7;
+pub const BREAK_OBJ: u8 = 8;
+pub const FUNC_OBJ: u8 = 9;
+pub const INCLUDE_OBJ: u8 = 10;
+pub const SHOW_OBJ: u8 = 11;
+pub const COMPILED_FUNC_OBJ: u8 = 12;
+pub const CLOSURE_OBJ: u8 = 13;
 
 #[derive(Debug, Clone)]
 pub enum Object {
@@ -79,9 +79,9 @@ pub enum Object {
         pairs: HashMap<Rc<HashKey>, Rc<HashPair>>,
     },
 
-    Compfunc(CompFunc),
+    Compfunc(Rc<CompFunc>),
 
-    Closure(Closure),
+    Closure(Rc<Closure>),
 }
 
 impl Display for Object {
@@ -113,19 +113,19 @@ impl Display for Object {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Closure {
-    pub fun: CompFunc,
+    pub fun: Rc<CompFunc>,
     pub frees: Vec<Rc<Object>>,
 }
 
 impl Closure {
     pub fn new(fnin: Rc<Instructions>) -> Self {
         Self {
-            fun: CompFunc::new(fnin),
+            fun: CompFunc::new(fnin).into(),
             frees: Vec::new(),
         }
     }
 
-    pub const fn new_from_cfn(fun: CompFunc) -> Self {
+    pub const fn new_from_cfn(fun: Rc<CompFunc>) -> Self {
         Self { fun, frees: vec![] }
     }
 }
@@ -216,7 +216,7 @@ impl Object {
         s.finish()
     }
 
-    pub const fn get_type(&self) -> &str {
+    pub const fn get_type(&self) -> u8 {
         match self {
             Self::Hash { .. } => HASH_OBJ,
             Self::Null => NULL_OBJ,

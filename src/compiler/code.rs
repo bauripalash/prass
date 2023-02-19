@@ -225,7 +225,7 @@ impl Instructions {
         self.ins.extend_from_slice(&i)
     }
 
-    pub fn read_uint16(insts: Vec<u8>, start: usize) -> u16 {
+    pub fn read_uint16(insts: &[u8], start: usize) -> u16 {
         //        let mut tc = Cursor::new(insts[start..].to_vec());
 
         //      if let Ok(v) = tc.read_u16::<BigEndian>() {
@@ -234,13 +234,13 @@ impl Instructions {
 
         if insts.len() >= 2 {
             let (int_bytes, _) = insts[start..].split_at(std::mem::size_of::<u16>());
-            u16::from_be_bytes(int_bytes.try_into().unwrap())
+            u16::from_be_bytes([int_bytes[0], int_bytes[1]])
         } else {
             panic!("u16 can not be built from supplied vector")
         }
     }
 
-    pub fn read_u8(insts: &Vec<u8>) -> u8 {
+    pub fn read_u8(insts: &[u8]) -> u8 {
         //let mut tc = Cursor::new(insts);
         if !insts.is_empty() {
             insts[0]
