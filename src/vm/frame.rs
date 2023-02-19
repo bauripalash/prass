@@ -32,7 +32,7 @@ impl Frame {
     }
 
     pub fn get_instructions(&self) -> Rc<code::Instructions> {
-        self.cl.fun.fnin.clone()
+        Rc::clone(&self.cl.fun.fnin)
     }
 
     pub fn get_ins_len(&self) -> i64 {
@@ -41,5 +41,29 @@ impl Frame {
 
     pub fn get_ip(&self) -> i64 {
         self.ip
+    }
+
+    pub fn set_ip(&mut self, ip: i64) {
+        self.ip = ip;
+    }
+
+    pub fn adv_ip(&mut self, ip: i64) {
+        self.ip += ip
+    }
+
+    pub fn get_bp(&self) -> i64 {
+        self.bp
+    }
+
+    pub fn set_bp(&mut self, bp: i64) {
+        self.bp = bp
+    }
+
+    pub fn adv_bp(&mut self, bp: i64) {
+        self.bp += bp
+    }
+
+    pub fn get_cl(&self) -> Rc<Closure> {
+        Rc::clone(&self.cl)
     }
 }

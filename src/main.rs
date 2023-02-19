@@ -19,8 +19,7 @@ fn main() {
             sesh 
         sesh 
     sesh
-    dekhao(fib(21))
-    #dekhao(fib(22),1,2,3,4)
+    dekhao(fib(20))
         ";
 
     //let a = Lexer::new("ekti kaj(x) x+1 sesh(2)");

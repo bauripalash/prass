@@ -62,13 +62,14 @@ impl Display for NumberToken {
 /*
 impl PartialEq for NumberToken {
     fn eq(&self, other: &Self) -> bool {
-       if self.is_int() == other.is_int() {
+       if self.is_int() != other.is_int() {
             return false;
        }
 
-       if let
+        self.get_as_f64() == self.get_as_f64()
     }
-}*/
+}
+*/
 
 impl Eq for NumberToken {}
 
@@ -109,6 +110,7 @@ impl Add for NumberToken {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Sub for NumberToken {
     type Output = NumberToken;
     fn sub(self, rhs: Self) -> Self::Output {

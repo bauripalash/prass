@@ -1,9 +1,4 @@
-use std::{
-    borrow::{Borrow, BorrowMut},
-    cell::{Ref, RefCell},
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub mod frame;
 
@@ -44,15 +39,56 @@ pub struct Vm {
     stack: Vec<Object>,
     sp: usize,
     globals: GlobalStack, //Rc<RefCell<[Object]>>,
-    frames: Vec<Frame>,
+    frames: FramePool,
     frame_index: usize,
     last_popped: Rc<Object>,
 }
 
+//pub type Pframe = Rc<RefCell<Frame>>;
+
 #[derive(Debug)]
 struct FramePool {
-    pub frames: RefCell<Vec<Rc<RefCell<Frame>>>>,
+    pub frames: Vec<Rc<RefCell<Frame>>>,
     pub len: usize,
+}
+
+impl FramePool {
+    pub fn new() -> Self {
+        Self {
+            frames: Vec::with_capacity(FRAMES_SIZE), //Rc::new(RefCell::new(Vec::with_capacity(FRAMES_SIZE))),
+            len: 0,
+        }
+    }
+
+    pub fn push_frame(&mut self, index: usize, frame: Frame) {
+        if index >= self.len {
+            self.frames.push(Rc::new(RefCell::new(frame)));
+            self.len += 1;
+        } else {
+            self.frames[index] = Rc::new(RefCell::new(frame)) //Pframe::new_from_frame(frame);
+        }
+    }
+
+    pub fn get_frame(&self, index: usize) -> Rc<RefCell<Frame>> {
+        Rc::clone(&self.frames[index])
+    }
+
+    pub fn adv_ip(&mut self, index: usize, by: i64) {
+        self.frames[index].borrow_mut().adv_ip(by)
+    }
+
+    pub fn set_ip(&mut self, index: usize, by: i64) {
+        (*self.frames[index]).borrow_mut().set_ip(by);
+    }
+
+    pub fn get_ip(&self, index: usize) -> i64 {
+        (*self.frames[index]).borrow().get_ip()
+    }
+
+    pub fn get_ins(&self, index: usize) -> Rc<Instructions> {
+        //self.frames.borrow()[index].as_ref().borrow().get_instructions()
+        (*self.frames[index]).borrow().get_instructions()
+    }
 }
 
 #[derive(Debug)]
@@ -86,34 +122,15 @@ impl GlobalStack {
     }
 }
 
-impl FramePool {
-    pub fn new() -> Self {
-        Self {
-            frames: RefCell::new(Vec::with_capacity(FRAMES_SIZE)),
-            len: 0,
-        }
-    }
-
-    pub fn push_frame(&mut self, index: usize, frame: Frame) {
-        if index >= self.len {
-            self.frames.borrow_mut().push(Rc::new(RefCell::new(frame)))
-        } else {
-            self.frames.borrow_mut()[index] = Rc::new(RefCell::new(frame))
-        }
-    }
-
-    pub fn get_frame(&self, index: usize) -> Rc<RefCell<Frame>> {
-        Rc::clone(&self.frames.borrow_mut()[index])
-    }
-}
-
 impl Vm {
     pub fn new(bc: Bytecode) -> Self {
         let main_cl = Rc::new(Closure::new(bc.instructions));
         let main_frame = Frame::new(main_cl, 0);
-        let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
-        frames[0] = main_frame;
+        //let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
+        //frames[0] = main_frame;
         //let gl = Rc::new(RefCell::new([NULL;GLOBALS_SIZE]));
+        let mut frames = FramePool::new();
+        frames.push_frame(0, main_frame);
         Self {
             constants: bc.constants,
             stack: Vec::with_capacity(STACK_SIZE), //vec![Object::Null; STACK_SIZE],
@@ -133,40 +150,49 @@ impl Vm {
         }
     }
 
-    fn current_frame(&self) -> &Frame {
-        &self.frames[self.frame_index - 1]
+    fn current_frame(&self) -> Rc<RefCell<Frame>> {
+        //println!("->{:?}" , self.frames.get_frame(self.frame_index-1));
+        self.frames.get_frame(self.frame_index - 1)
+        //&self.frames[self.frame_index - 1]
     }
 
-    fn current_frame_mut(&mut self) -> &mut Frame {
-        &mut self.frames[self.frame_index - 1]
-    }
+    //fn current_frame_mut(&mut self) -> &mut Frame {
+    //    &mut self.frames[self.frame_index - 1]
+    //}
 
     fn push_frame(&mut self, f: Frame) {
-        self.frames[self.frame_index] = f;
+        self.frames.push_frame(self.frame_index, f);
+        //self.frames[self.frame_index] = f;
+
         self.frame_index += 1;
     }
 
-    fn pop_frame(&mut self) -> Frame {
+    fn pop_frame(&mut self) -> Rc<RefCell<Frame>> {
         self.frame_index -= 1;
-        self.frames[self.frame_index].clone()
+        //self.frames[self.frame_index].clone()
+        self.frames.get_frame(self.frame_index)
     }
 
     fn adv_ip(&mut self, by: usize) {
         //self.current_frame_mut().ip += by as i64
-        self.frames[self.frame_index - 1].ip += by as i64
+        // self.frames[self.frame_index - 1].ip += by as i64
+        //self.current_frame().borrow_mut()
+        self.frames.adv_ip(self.frame_index - 1, by as i64)
     }
 
     fn set_ip(&mut self, t: usize) {
         //self.current_frame_mut().ip = t as i64
-        self.frames[self.frame_index - 1].ip = t as i64
+        //self.frames[self.frame_index - 1].ip = t as i64
+        self.frames.set_ip(self.frame_index - 1, t as i64)
     }
 
-    fn get_ip(&self) -> i64 {
-        self.frames[self.frame_index - 1].ip
+    fn get_ip(&self) -> usize {
+        //self.frames[self.frame_index - 1].ip
+        self.frames.get_ip(self.frame_index - 1) as usize
     }
 
-    fn get_ins_len(&self) -> i64 {
-        self.frames[self.frame_index - 1].get_ins_len()
+    fn get_cur_frame_ins(&self) -> Rc<Instructions> {
+        self.frames.get_ins(self.frame_index - 1)
     }
 
     pub fn run(&mut self) {
@@ -174,14 +200,16 @@ impl Vm {
         //let mut ins: Rc<Instructions>;
         //let mut op: code::Opcode;
         //        let curframe = self.current_frame();
-        while self.get_ip() < self.get_ins_len() - 1
+        //while self.get_ip() < (self.get_ins_len() - 1) as usize
         //< (self.current_frame().get_instructions().ins.len() as i64) - 1
+        while (*self.current_frame()).borrow().get_ip()
+            < (*self.current_frame()).borrow().get_ins_len() - 1
         {
             //while self.loop_cur_frame() {
             //self.current_frame_mut().ip += 1;
             self.adv_ip(1);
-            let ip = self.current_frame().ip as usize;
-            let ins = self.current_frame().get_instructions();
+            let ip = self.get_ip();
+            let ins = self.get_cur_frame_ins(); //self.current_frame().get_instructions();
             let op = code::u8_to_op(ins.ins[ip]);
 
             //println!("{:?}", op);
@@ -278,56 +306,61 @@ impl Vm {
                     let rvalue = self.pop();
                     let frm = self.pop_frame();
                     //self.pop();
-                    self.sp = frm.bp as usize - 1;
+                    self.sp = (*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize - 1; //frm.bp as usize - 1;
                     self.push(&rvalue)
                 }
                 code::Opcode::Return => {
                     let frm = self.pop_frame();
-                    self.sp = frm.bp as usize - 1;
-                    //self.pop();
+                    self.sp = (*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize -1; //frm.bp as usize - 1;
+                                                                     //self.pop();
                     self.push(&NULL);
                 }
                 code::Opcode::SetLocal => {
-                    let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
+                    let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..]);
                     self.adv_ip(1);
-                    let frm = self.current_frame().bp;
+                    let frm = (*self.current_frame()).borrow().get_bp();
+                    //self.current_frame().as_ref().borrow().get_bp(); //self.current_frame().bp;
                     self.stack[(frm as usize) + (local_index as usize)] = self.pop()
                 }
                 code::Opcode::GetLocal => {
-                    let local_index =
-                        code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec()) as usize;
+                    let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..]) as usize;
                     self.adv_ip(1);
-                    let frm_bp = self.current_frame().bp as usize;
+                    let frm_bp = (*self.current_frame()).borrow().get_bp() as usize;
+                    //self.current_frame().as_ref().borrow().get_bp() as usize; //self.current_frame().bp as usize;
                     let stack_obj = self.stack[frm_bp + local_index].clone();
                     self.push(&stack_obj);
                 }
                 code::Opcode::Call => {
-                    let num_args = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
+                    let num_args = code::Instructions::read_u8(&ins.ins[ip + 1..]);
                     self.adv_ip(1);
                     self.call_func(num_args as usize);
                 }
                 code::Opcode::Closure => {
                     let const_index = code::Instructions::read_uint16(&ins.ins, ip + 1);
-                    let num_free = code::Instructions::read_u8(&ins.ins[ip + 3..].to_vec());
+                    let num_free = code::Instructions::read_u8(&ins.ins[ip + 3..]);
 
                     self.adv_ip(3);
                     self.push_closure(const_index as usize, num_free as usize);
                 }
                 code::Opcode::GetFree => {
-                    let f_index = code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec());
+                    let f_index = code::Instructions::read_u8(&ins.ins[ip + 1..]);
                     self.adv_ip(1);
-                    let ccl = &self.current_frame().cl.clone();
+                    //                    let curframe = self.current_frame();
+
+                    let ccl = Rc::clone(&(*self.current_frame()).borrow().cl); //&curframe.as_ref().borrow().cl; //&self.current_frame().cl.clone();
+
                     self.push(&ccl.frees[f_index as usize])
                 }
 
                 code::Opcode::CurrentClosure => {
-                    let ccl = self.current_frame().cl.clone();
+                    //                    let ccl = self.current_frame().cl.clone();
+                    let ccl = Rc::clone(&(*self.current_frame()).borrow().cl);
+                    //&self.current_frame().as_ref().borrow().cl.clone();
 
-                    self.push(&Object::Closure(ccl));
+                    self.push(&Object::Closure(ccl.to_owned()));
                 }
                 code::Opcode::Show => {
-                    let num_items =
-                        code::Instructions::read_u8(&ins.ins[ip + 1..].to_vec()) as usize;
+                    let num_items = code::Instructions::read_u8(&ins.ins[ip + 1..]) as usize;
 
                     let mut i = 0;
 
@@ -626,7 +659,7 @@ impl Vm {
             code::Opcode::Div => value = lval / rval,
             code::Opcode::Mod => value = lval % rval,
             _ => {
-                panic!("unknown {:?} operator for numbers", op)
+                panic!("unknown {op:?} operator for numbers")
             }
         }
 

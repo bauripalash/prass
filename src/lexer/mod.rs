@@ -93,7 +93,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        charlist_to_string(&self.charlist[pos..self.pos]).to_string()
+        charlist_to_string(&self.charlist[pos..self.pos])
     }
 
     fn read_string(&mut self) -> Token {
@@ -112,7 +112,7 @@ impl<'a> Lexer<'a> {
 
         Token {
             ttype: TokenType::String,
-            literal: charlist_to_string(slit).to_string(),
+            literal: charlist_to_string(slit),
             colno,
             lineno,
         }
