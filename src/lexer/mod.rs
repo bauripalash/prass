@@ -6,7 +6,7 @@ use crate::{
 use std::rc::Rc;
 
 fn charlist_to_string(charlist: &[char]) -> String {
-    return charlist.iter().collect::<String>();
+    String::from_iter(charlist.iter())
 }
 
 #[allow(dead_code)]
@@ -72,7 +72,7 @@ impl<'a> Lexer<'a> {
         }
 
         let raw_number: String =
-            parse_bn_num(charlist_to_string(&self.charlist[cur_pos..self.pos]));
+            parse_bn_num(&charlist_to_string(&self.charlist[cur_pos..self.pos]));
 
         if raw_number.is_ascii() {
             Some(Token::new(TokenType::Number, raw_number, colno, lineno))
@@ -93,7 +93,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        charlist_to_string(&self.charlist[pos..self.pos])
+        charlist_to_string(&self.charlist[pos..self.pos]).to_string()
     }
 
     fn read_string(&mut self) -> Token {
@@ -112,7 +112,7 @@ impl<'a> Lexer<'a> {
 
         Token {
             ttype: TokenType::String,
-            literal: charlist_to_string(slit),
+            literal: charlist_to_string(slit).to_string(),
             colno,
             lineno,
         }

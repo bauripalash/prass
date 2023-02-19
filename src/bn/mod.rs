@@ -12,7 +12,7 @@ pub const fn is_bn_char(c: char) -> bool {
     c >= BN_RANGE_START && c <= BN_RANGE_END
 }
 
-pub fn parse_bn_num(c: String) -> String {
+pub fn parse_bn_num(c: &str) -> String {
     let mut result: Vec<char> = vec![];
 
     for item in c.chars() {

@@ -13,7 +13,7 @@ fn test_parse_bn_num() {
     ]);
 
     for (k, v) in test_cases {
-        assert_eq!(parse_bn_num(k.to_string()), v.to_string());
+        assert_eq!(parse_bn_num(k), v.to_string());
     }
 }
 

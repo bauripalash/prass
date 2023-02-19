@@ -118,7 +118,7 @@ pub struct Closure {
 }
 
 impl Closure {
-    pub const fn new(fnin: Rc<Instructions>) -> Self {
+    pub fn new(fnin: Rc<Instructions>) -> Self {
         Self {
             fun: CompFunc::new(fnin),
             frees: Vec::new(),
@@ -159,7 +159,7 @@ impl Default for CompFunc {
 }
 
 impl CompFunc {
-    pub const fn new(fnin: Rc<Instructions>) -> Self {
+    pub fn new(fnin: Rc<Instructions>) -> Self {
         Self {
             fnin,
             num_locals: 0,
