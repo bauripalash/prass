@@ -51,6 +51,48 @@ pub struct Vm {
 //pub type Pframe = Rc<RefCell<Frame>>;
 
 #[derive(Debug)]
+struct StackPool {
+    pub stack: Vec<Rc<RefCell<Object>>>,
+    pub len: usize,
+}
+
+impl StackPool {
+    pub const fn new() -> Self {
+        Self {
+            stack: Vec::new(),
+            len: 0,
+        }
+    }
+
+    pub fn push(&mut self, index: usize, obj: Object) {
+        if index >= self.len {
+            self.stack.push(Rc::new(RefCell::new(obj)));
+            self.len += 1
+        } else {
+            unsafe {
+                let ptr = self.stack[index].as_ptr();
+                *ptr = obj;
+            }
+        }
+    }
+
+    pub fn pop(&mut self) -> Rc<RefCell<Object>> {
+        self.len -= 1;
+        self.stack.pop().unwrap()
+    }
+
+    pub fn get(&self, index: usize) -> &Rc<RefCell<Object>> {
+        &self.stack[index]
+    }
+
+    pub fn get_mut(&self, index: usize) -> RefMut<Object> {
+        //self.stack[index].as_ptr();
+        //ptr
+        self.stack[index].borrow_mut()
+    }
+}
+
+#[derive(Debug)]
 struct FramePool {
     pub frames: Vec<Rc<RefCell<Frame>>>,
     pub len: usize,
@@ -72,7 +114,11 @@ impl FramePool {
             self.len += 1;
         } else {
             //self.frames[index] = Rc::new(RefCell::new(frame)) //Pframe::new_from_frame(frame);
-            self.frames[index] = Rc::new(RefCell::new(frame)) // Arc::new(frame)
+            //self.frames[index] = Rc::new(RefCell::new(frame)) // Arc::new(frame)
+            unsafe {
+                let x = self.frames[index].as_ptr();
+                *x = frame;
+            }
         }
     }
 
@@ -105,24 +151,37 @@ impl FramePool {
         //let x = &self.frames[index];
         //(*x.borrow_mut()).adv_ip(by)
         //x.adv_ip(by)
-        (*self.frames.get(index).unwrap()).borrow_mut().adv_ip(by)
+        //(*self.frames.get(index).unwrap()).borrow_mut().adv_ip(by)
+        unsafe {
+            let x = &self.frames[index];
+            let ptr = x.as_ptr();
+            (*ptr).ip += by;
+        }
     }
 
     pub fn set_ip(&mut self, index: usize, by: i64) {
         //self.frames[index].set_ip(by);
         //Arc::get_mut(&mut self.frames[index]).unwrap().set_ip(by)
-        (*self.frames[index].borrow_mut()).set_ip(by)
+        //(*self.frames[index].borrow_mut()).set_ip(by)
+        unsafe {
+            let ptr = self.frames[index].as_ptr();
+            (*ptr).ip = by;
+        }
     }
 
     pub fn get_ip(&self, index: usize) -> i64 {
         //self.frames[index].get_ip()
-        self.frames[index].borrow().get_ip()
+        //self.frames[index].borrow().get_ip()
+        let ptr = self.frames[index].as_ptr();
+        unsafe { (*ptr).ip }
     }
 
     pub fn get_ins(&self, index: usize) -> Rc<Instructions> {
         //self.frames.borrow()[index].as_ref().borrow().get_instructions()
         //self.frames[index].get_instructions()
-        self.frames[index].borrow().get_instructions()
+        //self.frames[index].borrow().get_instructions()
+        let ptr = self.frames[index].as_ptr();
+        unsafe { (*ptr).get_instructions() }
     }
 }
 
@@ -144,7 +203,11 @@ impl GlobalStack {
             self.globals.borrow_mut().push(obj);
             self.len += 1;
         } else {
-            self.globals.borrow_mut()[index] = obj;
+            //self.globals.borrow_mut()[index] = obj;
+            let ptr = self.globals.as_ptr();
+            unsafe {
+                (*ptr)[index] = obj;
+            }
         }
     }
 

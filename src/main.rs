@@ -19,7 +19,7 @@ fn main() {
             sesh 
         sesh 
     sesh
-    dekhao(fib(20))
+    dekhao(fib(25))
         ";
 
     //let a = Lexer::new("ekti kaj(x) x+1 sesh(2)");
@@ -32,7 +32,7 @@ fn main() {
         println!("parse done!");
         let mut comp = Compiler::new();
         comp.compile(ast);
-        println!("{}", comp.bytecode());
+        //println!("{}", comp.bytecode());
 
         let mut v = Vm::new(comp.bytecode());
         v.run();
@@ -54,3 +54,29 @@ fn main() {
     //v.run();
     //println!("result->{}", v.last_pop());
 }
+
+/*
+use std::{rc::Rc, cell::RefCell};
+const SS : usize = 10;
+fn main() {
+    let stack : Rc<RefCell<Vec<Rc<RefCell<String>>>>> = Rc::new(RefCell::new(Vec::with_capacity(SS)));
+    let x = ["a" , "b" , "c"];
+
+    for item in x{
+        (stack.borrow_mut()).push(Rc::new(RefCell::new(item.to_string())))
+    }
+
+
+    unsafe{
+
+    let y = &stack.borrow_mut()[1];
+        let z = y.as_ptr();
+        *z= "l".to_string();
+            //Rc::new(RefCell::new("l".to_string()));
+
+    }
+
+
+    println!("{:?}" , stack);
+}
+*/

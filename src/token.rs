@@ -62,7 +62,7 @@ impl Display for NumberToken {
 
 impl PartialEq for NumberToken {
     fn eq(&self, other: &Self) -> bool {
-        self.get_type() == other.get_type() && self.get_hash() == other.get_hash()
+        self.get_hash() == other.get_hash()
 
         //self.get_as_f64() == self.get_as_f64()
     }
@@ -172,7 +172,7 @@ impl Hash for NumberToken {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             Self::Int(i) => i.hash(state),
-            Self::Float(f) => format!("{f}").hash(state),
+            Self::Float(f) => f.to_bits().hash(state),
         }
     }
 }
@@ -212,7 +212,11 @@ impl NumberToken {
 
     pub fn get_hash(&self) -> u64 {
         let mut h = DefaultHasher::new();
-        self.hash(&mut h);
+        match self {
+            Self::Int(i) => i.hash(&mut h),
+            Self::Float(f) => f.to_bits().hash(&mut h),
+        }
+        //self.hash(&mut h);
         h.finish()
     }
 }
