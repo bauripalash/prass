@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::{RefCell, RefMut},
+    collections::HashMap,
+    rc::Rc,
+};
 
 pub mod frame;
 
@@ -62,32 +66,63 @@ impl FramePool {
 
     pub fn push_frame(&mut self, index: usize, frame: Frame) {
         if index >= self.len {
+            //self.frames.push(Rc::new(RefCell::new(frame)));
+            //self.frames.push(Box::new(frame));
             self.frames.push(Rc::new(RefCell::new(frame)));
             self.len += 1;
         } else {
-            self.frames[index] = Rc::new(RefCell::new(frame)) //Pframe::new_from_frame(frame);
+            //self.frames[index] = Rc::new(RefCell::new(frame)) //Pframe::new_from_frame(frame);
+            self.frames[index] = Rc::new(RefCell::new(frame)) // Arc::new(frame)
         }
     }
 
-    pub fn get_frame(&self, index: usize) -> Rc<RefCell<Frame>> {
-        Rc::clone(&self.frames[index])
+    pub fn pop_frame(&mut self) -> Rc<RefCell<Frame>> {
+        self.len -= 1;
+        self.frames.pop().unwrap()
+        //let mut r = self.frames.pop().unwrap();
+        //Arc::get_mut(&mut r).unwrap()
+        //Arc::get_mut(&mut self.frames[index]).unwrap()
+    }
+
+    pub fn get_frame_mut(&mut self, index: usize) -> RefMut<Frame> {
+        //Rc::clone(&self.frames[index])
+        //Arc::get_mut(&mut self.frames[index]).unwrap()
+        self.frames[index].borrow_mut()
+    }
+
+    pub fn get_frame(&self, index: usize) -> &Rc<RefCell<Frame>> {
+        //Arc::clone(&self.frames[index])
+        &self.frames[index]
     }
 
     pub fn adv_ip(&mut self, index: usize, by: i64) {
-        self.frames[index].borrow_mut().adv_ip(by)
+        //self.frames[index].adv_ip(by)
+        //Arc::get_mut(&mut self.frames[index]).unwrap().adv_ip(by)
+        //let x = self.frames[index].as_ptr() as *const Frame;
+        //unsafe {
+        //    x
+        //}
+        //let x = &self.frames[index];
+        //(*x.borrow_mut()).adv_ip(by)
+        //x.adv_ip(by)
+        (*self.frames.get(index).unwrap()).borrow_mut().adv_ip(by)
     }
 
     pub fn set_ip(&mut self, index: usize, by: i64) {
-        (*self.frames[index]).borrow_mut().set_ip(by);
+        //self.frames[index].set_ip(by);
+        //Arc::get_mut(&mut self.frames[index]).unwrap().set_ip(by)
+        (*self.frames[index].borrow_mut()).set_ip(by)
     }
 
     pub fn get_ip(&self, index: usize) -> i64 {
-        (*self.frames[index]).borrow().get_ip()
+        //self.frames[index].get_ip()
+        self.frames[index].borrow().get_ip()
     }
 
     pub fn get_ins(&self, index: usize) -> Rc<Instructions> {
         //self.frames.borrow()[index].as_ref().borrow().get_instructions()
-        (*self.frames[index]).borrow().get_instructions()
+        //self.frames[index].get_instructions()
+        self.frames[index].borrow().get_instructions()
     }
 }
 
@@ -150,11 +185,18 @@ impl Vm {
         }
     }
 
-    fn current_frame(&self) -> Rc<RefCell<Frame>> {
+    fn current_frame(&self) -> &Rc<RefCell<Frame>> {
         //println!("->{:?}" , self.frames.get_frame(self.frame_index-1));
-        self.frames.get_frame(self.frame_index - 1)
+        //self.frames.get_frame(self.frame_index - 1)
         //&self.frames[self.frame_index - 1]
+        //self.frames.get_frame(self.frame_index - 1)
+        self.frames.get_frame(self.frame_index - 1)
     }
+
+    //fn current_frame_mut(&mut self) -> Rc<RefCell<Frame>> {
+    //self.frames.get_frame_mut(self.frame_index - 1)
+    //    self.frames.get_frame(self.frame_index - 1)
+    //}
 
     //fn current_frame_mut(&mut self) -> &mut Frame {
     //    &mut self.frames[self.frame_index - 1]
@@ -170,7 +212,9 @@ impl Vm {
     fn pop_frame(&mut self) -> Rc<RefCell<Frame>> {
         self.frame_index -= 1;
         //self.frames[self.frame_index].clone()
-        self.frames.get_frame(self.frame_index)
+        //self.frames.get_frame(self.frame_index)
+        //self.frames.get_frame(self.frame_index)
+        self.frames.pop_frame()
     }
 
     fn adv_ip(&mut self, by: usize) {
@@ -195,6 +239,10 @@ impl Vm {
         self.frames.get_ins(self.frame_index - 1)
     }
 
+    //fn get_ins_len(&self) -> i64 {
+    //    self.current_frame().borrow().get_ins_len()
+    //}
+
     pub fn run(&mut self) {
         //let mut ip: usize;
         //let mut ins: Rc<Instructions>;
@@ -202,9 +250,12 @@ impl Vm {
         //        let curframe = self.current_frame();
         //while self.get_ip() < (self.get_ins_len() - 1) as usize
         //< (self.current_frame().get_instructions().ins.len() as i64) - 1
-        while (*self.current_frame()).borrow().get_ip()
-            < (*self.current_frame()).borrow().get_ins_len() - 1
+        //while (*self.current_frame()).borrow().get_ip()
+        //    < (*self.current_frame()).borrow().get_ins_len() - 1
+        while self.current_frame().borrow().get_ip()
+            < self.current_frame().borrow().get_ins_len() - 1
         {
+            //self.current_frame().get_ins_len() - 1 {
             //while self.loop_cur_frame() {
             //self.current_frame_mut().ip += 1;
             self.adv_ip(1);
@@ -306,26 +357,29 @@ impl Vm {
                     let rvalue = self.pop();
                     let frm = self.pop_frame();
                     //self.pop();
-                    self.sp = (*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize - 1; //frm.bp as usize - 1;
+                    self.sp = frm.borrow().get_bp() as usize - 1;
+                    //frm.get_bp() as usize - 1;
+                    //(*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize - 1; //frm.bp as usize - 1;
                     self.push(&rvalue)
                 }
                 code::Opcode::Return => {
                     let frm = self.pop_frame();
-                    self.sp = (*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize -1; //frm.bp as usize - 1;
-                                                                     //self.pop();
+                    self.sp = frm.borrow().get_bp() as usize - 1;
+                    //(*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize -1; //frm.bp as usize - 1;
+                    //self.pop();
                     self.push(&NULL);
                 }
                 code::Opcode::SetLocal => {
                     let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..]);
                     self.adv_ip(1);
-                    let frm = (*self.current_frame()).borrow().get_bp();
+                    let frm = self.current_frame().borrow().get_bp();
                     //self.current_frame().as_ref().borrow().get_bp(); //self.current_frame().bp;
                     self.stack[(frm as usize) + (local_index as usize)] = self.pop()
                 }
                 code::Opcode::GetLocal => {
                     let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..]) as usize;
                     self.adv_ip(1);
-                    let frm_bp = (*self.current_frame()).borrow().get_bp() as usize;
+                    let frm_bp = self.current_frame().borrow().get_bp() as usize;
                     //self.current_frame().as_ref().borrow().get_bp() as usize; //self.current_frame().bp as usize;
                     let stack_obj = self.stack[frm_bp + local_index].clone();
                     self.push(&stack_obj);
@@ -347,14 +401,17 @@ impl Vm {
                     self.adv_ip(1);
                     //                    let curframe = self.current_frame();
 
-                    let ccl = Rc::clone(&(*self.current_frame()).borrow().cl); //&curframe.as_ref().borrow().cl; //&self.current_frame().cl.clone();
+                    let ccl = Rc::clone(&self.current_frame().borrow().cl);
+                    //Rc::clone(&self.current_frame().cl);
+                    //Rc::clone(&(*self.current_frame()).borrow().cl); //&curframe.as_ref().borrow().cl; //&self.current_frame().cl.clone();
 
                     self.push(&ccl.frees[f_index as usize])
                 }
 
                 code::Opcode::CurrentClosure => {
                     //                    let ccl = self.current_frame().cl.clone();
-                    let ccl = Rc::clone(&(*self.current_frame()).borrow().cl);
+                    let ccl = Rc::clone(&self.current_frame().borrow().cl);
+                    //Rc::clone(&self.current_frame().cl);
                     //&self.current_frame().as_ref().borrow().cl.clone();
 
                     self.push(&Object::Closure(ccl.to_owned()));

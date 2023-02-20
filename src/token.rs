@@ -1,7 +1,8 @@
 use std::{
     cmp::Ordering,
+    collections::hash_map::DefaultHasher,
     fmt::Display,
-    hash::Hash,
+    hash::{Hash, Hasher},
     ops::{Add, Div, Mul, Rem, Sub},
 };
 
@@ -44,7 +45,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum NumberToken {
     Float(f64),
     Int(i64),
@@ -59,17 +60,13 @@ impl Display for NumberToken {
     }
 }
 
-/*
 impl PartialEq for NumberToken {
     fn eq(&self, other: &Self) -> bool {
-       if self.is_int() != other.is_int() {
-            return false;
-       }
+        self.get_type() == other.get_type() && self.get_hash() == other.get_hash()
 
-        self.get_as_f64() == self.get_as_f64()
+        //self.get_as_f64() == self.get_as_f64()
     }
 }
-*/
 
 impl Eq for NumberToken {}
 
@@ -211,6 +208,12 @@ impl NumberToken {
             Self::Int(iv) => Self::Int(-iv),
             Self::Float(fv) => Self::Float(-fv),
         }
+    }
+
+    pub fn get_hash(&self) -> u64 {
+        let mut h = DefaultHasher::new();
+        self.hash(&mut h);
+        h.finish()
     }
 }
 
