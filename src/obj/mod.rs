@@ -243,7 +243,10 @@ impl Hash for Object {
         match self {
             Self::String { token: _, value } => value.hash(state),
             Self::Bool { token: _, value } => value.hash(state),
-            Self::Number { token: _, value } => value.hash(state),
+            Self::Number { token: _, value } => match value {
+                token::NumberToken::Int(i) => i.hash(state),
+                token::NumberToken::Float(f) => f.to_bits().hash(state),
+            },
             _ => panic!("not hashable"),
         }
     }

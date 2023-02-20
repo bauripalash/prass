@@ -45,7 +45,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NumberToken {
     Float(f64),
     Int(i64),
@@ -59,14 +59,14 @@ impl Display for NumberToken {
         }
     }
 }
-
+/*
 impl PartialEq for NumberToken {
     fn eq(&self, other: &Self) -> bool {
         self.get_hash() == other.get_hash()
 
         //self.get_as_f64() == self.get_as_f64()
     }
-}
+}*/
 
 impl Eq for NumberToken {}
 
@@ -168,6 +168,7 @@ impl Rem for NumberToken {
     }
 }
 
+/*
 impl Hash for NumberToken {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
@@ -175,7 +176,7 @@ impl Hash for NumberToken {
             Self::Float(f) => f.to_bits().hash(state),
         }
     }
-}
+}*/
 
 impl NumberToken {
     pub const fn get_type(&self) -> bool {

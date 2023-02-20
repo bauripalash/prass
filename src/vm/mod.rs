@@ -1,10 +1,11 @@
 use std::{
-    cell::{RefCell, RefMut},
+    cell::{Ref, RefCell},
     collections::HashMap,
     rc::Rc,
 };
 
 pub mod frame;
+pub mod global;
 
 use crate::{
     compiler::code::{self, Bytecode, Instructions},
@@ -12,11 +13,10 @@ use crate::{
     token::NumberToken,
 };
 
-use self::frame::Frame;
+use self::frame::{Frame, FramePool};
+use self::global::GlobalStack;
 
 static STACK_SIZE: usize = 2048;
-const GLOBALS_SIZE: usize = 1024; //Change
-static FRAMES_SIZE: usize = 1024;
 
 const TRUE: Object = Object::Bool {
     token: None,
@@ -51,172 +51,39 @@ pub struct Vm {
 //pub type Pframe = Rc<RefCell<Frame>>;
 
 #[derive(Debug)]
-struct StackPool {
+pub struct StackPool {
     pub stack: Vec<Rc<RefCell<Object>>>,
     pub len: usize,
 }
 
 impl StackPool {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            stack: Vec::new(),
+            stack: Vec::with_capacity(STACK_SIZE),
             len: 0,
         }
     }
 
-    pub fn push(&mut self, index: usize, obj: Object) {
+    pub fn push_at(&mut self, index: usize, obj: Object) {
         if index >= self.len {
             self.stack.push(Rc::new(RefCell::new(obj)));
-            self.len += 1
+            self.len += 1;
         } else {
-            unsafe {
-                let ptr = self.stack[index].as_ptr();
-                *ptr = obj;
-            }
+            self.stack[index] = Rc::new(RefCell::new(obj))
         }
     }
 
     pub fn pop(&mut self) -> Rc<RefCell<Object>> {
         self.len -= 1;
-        self.stack.pop().unwrap()
+        self.stack.pop().expect("empty stack")
     }
 
     pub fn get(&self, index: usize) -> &Rc<RefCell<Object>> {
-        &self.stack[index]
+        unsafe { self.stack.get_unchecked(index) }
     }
 
-    pub fn get_mut(&self, index: usize) -> RefMut<Object> {
-        //self.stack[index].as_ptr();
-        //ptr
-        self.stack[index].borrow_mut()
-    }
-}
-
-#[derive(Debug)]
-struct FramePool {
-    pub frames: Vec<Rc<RefCell<Frame>>>,
-    pub len: usize,
-}
-
-impl FramePool {
-    pub fn new() -> Self {
-        Self {
-            frames: Vec::with_capacity(FRAMES_SIZE), //Rc::new(RefCell::new(Vec::with_capacity(FRAMES_SIZE))),
-            len: 0,
-        }
-    }
-
-    pub fn push_frame(&mut self, index: usize, frame: Frame) {
-        if index >= self.len {
-            //self.frames.push(Rc::new(RefCell::new(frame)));
-            //self.frames.push(Box::new(frame));
-            self.frames.push(Rc::new(RefCell::new(frame)));
-            self.len += 1;
-        } else {
-            //self.frames[index] = Rc::new(RefCell::new(frame)) //Pframe::new_from_frame(frame);
-            //self.frames[index] = Rc::new(RefCell::new(frame)) // Arc::new(frame)
-            unsafe {
-                let x = self.frames[index].as_ptr();
-                *x = frame;
-            }
-        }
-    }
-
-    pub fn pop_frame(&mut self) -> Rc<RefCell<Frame>> {
-        self.len -= 1;
-        self.frames.pop().unwrap()
-        //let mut r = self.frames.pop().unwrap();
-        //Arc::get_mut(&mut r).unwrap()
-        //Arc::get_mut(&mut self.frames[index]).unwrap()
-    }
-
-    pub fn get_frame_mut(&mut self, index: usize) -> RefMut<Frame> {
-        //Rc::clone(&self.frames[index])
-        //Arc::get_mut(&mut self.frames[index]).unwrap()
-        self.frames[index].borrow_mut()
-    }
-
-    pub fn get_frame(&self, index: usize) -> &Rc<RefCell<Frame>> {
-        //Arc::clone(&self.frames[index])
-        &self.frames[index]
-    }
-
-    pub fn adv_ip(&mut self, index: usize, by: i64) {
-        //self.frames[index].adv_ip(by)
-        //Arc::get_mut(&mut self.frames[index]).unwrap().adv_ip(by)
-        //let x = self.frames[index].as_ptr() as *const Frame;
-        //unsafe {
-        //    x
-        //}
-        //let x = &self.frames[index];
-        //(*x.borrow_mut()).adv_ip(by)
-        //x.adv_ip(by)
-        //(*self.frames.get(index).unwrap()).borrow_mut().adv_ip(by)
-        unsafe {
-            let x = &self.frames[index];
-            let ptr = x.as_ptr();
-            (*ptr).ip += by;
-        }
-    }
-
-    pub fn set_ip(&mut self, index: usize, by: i64) {
-        //self.frames[index].set_ip(by);
-        //Arc::get_mut(&mut self.frames[index]).unwrap().set_ip(by)
-        //(*self.frames[index].borrow_mut()).set_ip(by)
-        unsafe {
-            let ptr = self.frames[index].as_ptr();
-            (*ptr).ip = by;
-        }
-    }
-
-    pub fn get_ip(&self, index: usize) -> i64 {
-        //self.frames[index].get_ip()
-        //self.frames[index].borrow().get_ip()
-        let ptr = self.frames[index].as_ptr();
-        unsafe { (*ptr).ip }
-    }
-
-    pub fn get_ins(&self, index: usize) -> Rc<Instructions> {
-        //self.frames.borrow()[index].as_ref().borrow().get_instructions()
-        //self.frames[index].get_instructions()
-        //self.frames[index].borrow().get_instructions()
-        let ptr = self.frames[index].as_ptr();
-        unsafe { (*ptr).get_instructions() }
-    }
-}
-
-#[derive(Debug)]
-struct GlobalStack {
-    pub globals: RefCell<Vec<Rc<Object>>>,
-    pub len: usize,
-}
-
-impl GlobalStack {
-    pub fn new() -> Self {
-        Self {
-            globals: RefCell::new(Vec::with_capacity(GLOBALS_SIZE)),
-            len: 0,
-        }
-    }
-    pub fn push_value(&mut self, index: usize, obj: Rc<Object>) {
-        if index >= self.len {
-            self.globals.borrow_mut().push(obj);
-            self.len += 1;
-        } else {
-            //self.globals.borrow_mut()[index] = obj;
-            let ptr = self.globals.as_ptr();
-            unsafe {
-                (*ptr)[index] = obj;
-            }
-        }
-    }
-
-    pub fn get_value(&self, index: usize) -> Rc<Object> {
-        if index >= self.len || index > GLOBALS_SIZE {
-            Rc::new(Object::Null)
-        } else {
-            Rc::clone(&self.globals.borrow_mut()[index])
-        }
+    pub fn get_mut(&mut self, index: usize) -> &mut Rc<RefCell<Object>> {
+        unsafe { self.stack.get_unchecked_mut(index) }
     }
 }
 
@@ -224,15 +91,13 @@ impl Vm {
     pub fn new(bc: Bytecode) -> Self {
         let main_cl = Rc::new(Closure::new(bc.instructions));
         let main_frame = Frame::new(main_cl, 0);
-        //let mut frames: Vec<Frame> = vec![Frame::default(); FRAMES_SIZE];
-        //frames[0] = main_frame;
-        //let gl = Rc::new(RefCell::new([NULL;GLOBALS_SIZE]));
         let mut frames = FramePool::new();
-        frames.push_frame(0, main_frame);
+        frames.frames = vec![Rc::new(RefCell::new(main_frame))];
+        frames.len += 1;
         Self {
             constants: bc.constants,
-            stack: Vec::with_capacity(STACK_SIZE), //vec![Object::Null; STACK_SIZE],
-            globals: GlobalStack::new(),           //vec![Object::Null; GLOBALS_SIZE],
+            stack: Vec::with_capacity(STACK_SIZE),
+            globals: GlobalStack::new(),
             sp: 0,
             frames,
             frame_index: 1,
@@ -249,84 +114,80 @@ impl Vm {
     }
 
     fn current_frame(&self) -> &Rc<RefCell<Frame>> {
-        //println!("->{:?}" , self.frames.get_frame(self.frame_index-1));
-        //self.frames.get_frame(self.frame_index - 1)
-        //&self.frames[self.frame_index - 1]
-        //self.frames.get_frame(self.frame_index - 1)
-        self.frames.get_frame(self.frame_index - 1)
+        //&self.frames.frames[self.frame_index - 1]
+        unsafe { self.frames.frames.get_unchecked(self.frame_index - 1) }
     }
 
-    //fn current_frame_mut(&mut self) -> Rc<RefCell<Frame>> {
-    //self.frames.get_frame_mut(self.frame_index - 1)
-    //    self.frames.get_frame(self.frame_index - 1)
-    //}
-
-    //fn current_frame_mut(&mut self) -> &mut Frame {
-    //    &mut self.frames[self.frame_index - 1]
-    //}
-
     fn push_frame(&mut self, f: Frame) {
-        self.frames.push_frame(self.frame_index, f);
-        //self.frames[self.frame_index] = f;
+        if self.frame_index >= self.frames.len {
+            self.frames.frames.push(Rc::new(RefCell::new(f)))
+        } else {
+            unsafe {
+                (*self.frames.frames.get_unchecked(self.frame_index).as_ptr()) = f;
+            }
+        }
 
         self.frame_index += 1;
     }
 
     fn pop_frame(&mut self) -> Rc<RefCell<Frame>> {
         self.frame_index -= 1;
-        //self.frames[self.frame_index].clone()
-        //self.frames.get_frame(self.frame_index)
-        //self.frames.get_frame(self.frame_index)
-        self.frames.pop_frame()
+
+        self.frames.frames.pop().unwrap()
     }
 
     fn adv_ip(&mut self, by: usize) {
-        //self.current_frame_mut().ip += by as i64
-        // self.frames[self.frame_index - 1].ip += by as i64
-        //self.current_frame().borrow_mut()
-        self.frames.adv_ip(self.frame_index - 1, by as i64)
+        unsafe {
+            let ptr = self
+                .frames
+                .frames
+                .get_unchecked(self.frame_index - 1)
+                .as_ptr();
+            (*ptr).ip += by as i64
+        }
     }
 
     fn set_ip(&mut self, t: usize) {
-        //self.current_frame_mut().ip = t as i64
-        //self.frames[self.frame_index - 1].ip = t as i64
-        self.frames.set_ip(self.frame_index - 1, t as i64)
+        unsafe {
+            let ptr = self
+                .frames
+                .frames
+                .get_unchecked(self.frame_index - 1)
+                .as_ptr();
+            (*ptr).ip = t as i64;
+        }
     }
 
     fn get_ip(&self) -> usize {
-        //self.frames[self.frame_index - 1].ip
-        self.frames.get_ip(self.frame_index - 1) as usize
+        unsafe {
+            let ptr = self
+                .frames
+                .frames
+                .get_unchecked(self.frame_index - 1)
+                .as_ptr();
+            (*ptr).ip as usize
+        }
     }
 
     fn get_cur_frame_ins(&self) -> Rc<Instructions> {
-        self.frames.get_ins(self.frame_index - 1)
+        unsafe {
+            let ptr = self
+                .frames
+                .frames
+                .get_unchecked(self.frame_index - 1)
+                .as_ptr();
+            (*ptr).get_instructions()
+        }
     }
 
-    //fn get_ins_len(&self) -> i64 {
-    //    self.current_frame().borrow().get_ins_len()
-    //}
-
     pub fn run(&mut self) {
-        //let mut ip: usize;
-        //let mut ins: Rc<Instructions>;
-        //let mut op: code::Opcode;
-        //        let curframe = self.current_frame();
-        //while self.get_ip() < (self.get_ins_len() - 1) as usize
-        //< (self.current_frame().get_instructions().ins.len() as i64) - 1
-        //while (*self.current_frame()).borrow().get_ip()
-        //    < (*self.current_frame()).borrow().get_ins_len() - 1
         while self.current_frame().borrow().get_ip()
             < self.current_frame().borrow().get_ins_len() - 1
         {
-            //self.current_frame().get_ins_len() - 1 {
-            //while self.loop_cur_frame() {
-            //self.current_frame_mut().ip += 1;
             self.adv_ip(1);
             let ip = self.get_ip();
-            let ins = self.get_cur_frame_ins(); //self.current_frame().get_instructions();
+            let ins = self.get_cur_frame_ins();
             let op = code::u8_to_op(ins.ins[ip]);
-
-            //println!("{:?}", op);
 
             match op {
                 code::Opcode::Const => {
@@ -444,8 +305,13 @@ impl Vm {
                     self.adv_ip(1);
                     let frm_bp = self.current_frame().borrow().get_bp() as usize;
                     //self.current_frame().as_ref().borrow().get_bp() as usize; //self.current_frame().bp as usize;
-                    let stack_obj = self.stack[frm_bp + local_index].clone();
-                    self.push(&stack_obj);
+                    unsafe {
+                        let stack_obj = self.stack.get_unchecked(frm_bp + local_index).clone();
+
+                        self.push(&stack_obj);
+                    }
+
+                    //self.stack[frm_bp + local_index].clone();
                 }
                 code::Opcode::Call => {
                     let num_args = code::Instructions::read_u8(&ins.ins[ip + 1..]);
@@ -477,7 +343,7 @@ impl Vm {
                     //Rc::clone(&self.current_frame().cl);
                     //&self.current_frame().as_ref().borrow().cl.clone();
 
-                    self.push(&Object::Closure(ccl.to_owned()));
+                    self.push(&Object::Closure(ccl));
                 }
                 code::Opcode::Show => {
                     let num_items = code::Instructions::read_u8(&ins.ins[ip + 1..]) as usize;
@@ -518,7 +384,7 @@ impl Vm {
         while i < num_free {
             //fr[i] = self.stack[self.sp - num_free + i].clone().into();
             fr.push(Rc::new(
-                self.stack.get(self.sp - num_free + i).unwrap().to_owned(),
+                self.stack.get(self.sp - num_free + i).unwrap().clone(),
             ));
             i += 1;
         }
@@ -618,8 +484,16 @@ impl Vm {
         let mut i = start;
 
         while i < end {
-            let k = Rc::new(self.stack[i].clone());
-            let v = Rc::new(self.stack[i + 1].clone());
+            let k: Rc<Object>;
+            let v: Rc<Object>;
+            unsafe {
+                k = Rc::new(self.stack.get_unchecked(i).clone());
+            }
+
+            //let v =
+            unsafe {
+                v = Rc::new(self.stack.get_unchecked(i + 1).clone());
+            }
             if !k.hashable() {
                 panic!("key is not hashable")
             }

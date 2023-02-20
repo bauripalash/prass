@@ -1,3 +1,3 @@
 perf:
-	cargo flamegraph --dev
+	cargo flamegraph
 	perf script -F +pid > pras.perf

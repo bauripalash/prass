@@ -1,8 +1,9 @@
-use std::fmt::Display;
 use std::rc::Rc;
+use std::{cell::RefCell, fmt::Display};
 
 use crate::{compiler::code, obj::Closure};
 
+static FRAMES_SIZE: usize = 1024;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Frame {
     pub cl: Rc<Closure>,
@@ -65,5 +66,20 @@ impl Frame {
 
     pub fn get_cl(&self) -> Rc<Closure> {
         Rc::clone(&self.cl)
+    }
+}
+
+#[derive(Debug)]
+pub struct FramePool {
+    pub frames: Vec<Rc<RefCell<Frame>>>,
+    pub len: usize,
+}
+
+impl FramePool {
+    pub fn new() -> Self {
+        Self {
+            frames: Vec::with_capacity(FRAMES_SIZE), //Rc::new(RefCell::new(Vec::with_capacity(FRAMES_SIZE))),
+            len: 0,
+        }
     }
 }
