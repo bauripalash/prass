@@ -1,8 +1,4 @@
-use std::{
-    cell::{Ref, RefCell},
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub mod frame;
 pub mod global;
@@ -40,7 +36,7 @@ const fn bool_native_to_obj(b: bool) -> Object {
 #[derive(Debug)]
 pub struct Vm {
     constants: Vec<Rc<Object>>,
-    stack: Vec<Object>,
+    stack: StackPool, //Vec<Object>,
     sp: usize,
     globals: GlobalStack, //Rc<RefCell<[Object]>>,
     frames: FramePool,
@@ -64,12 +60,17 @@ impl StackPool {
         }
     }
 
-    pub fn push_at(&mut self, index: usize, obj: Object) {
-        if index >= self.len {
-            self.stack.push(Rc::new(obj));
-            self.len += 1;
+    pub fn push(&mut self, index: Option<usize>, obj: Rc<Object>) {
+        if let Some(idx) = index {
+            if idx >= self.len {
+                self.stack.push(obj);
+                self.len += 1;
+            } else {
+                self.stack[idx] = obj
+            }
         } else {
-            self.stack[index] = Rc::new(obj)
+            self.stack.push(obj);
+            self.len += 1;
         }
     }
 
@@ -85,6 +86,10 @@ impl StackPool {
     pub fn get_mut(&mut self, index: usize) -> &mut Rc<Object> {
         unsafe { self.stack.get_unchecked_mut(index) }
     }
+
+    pub fn len(&self) -> usize {
+        self.stack.len()
+    }
 }
 
 impl Vm {
@@ -96,7 +101,7 @@ impl Vm {
         frames.len += 1;
         Self {
             constants: bc.constants,
-            stack: Vec::with_capacity(STACK_SIZE),
+            stack: StackPool::new(), //Vec::with_capacity(STACK_SIZE),
             globals: GlobalStack::new(),
             sp: 0,
             frames,
@@ -105,11 +110,12 @@ impl Vm {
         }
     }
 
-    pub fn top_stack(&self) -> &Object {
+    pub fn top_stack(&self) -> Rc<Object> {
         if self.sp == 0 {
-            &Object::Null
+            Rc::new(Object::Null)
         } else {
-            &self.stack[self.sp - 1]
+            //&self.stack[self.sp - 1]
+            Rc::clone(self.stack.get(self.sp - 1))
         }
     }
 
@@ -193,7 +199,7 @@ impl Vm {
                 code::Opcode::Const => {
                     let op_ins = &ins.ins;
                     let con_index = Instructions::read_uint16(op_ins, ip + 1) as usize;
-                    let con_obj = &self.constants[con_index].clone();
+                    let con_obj = self.constants[con_index].clone();
                     self.push(con_obj);
 
                     //println!("{con_index:?}");
@@ -201,7 +207,7 @@ impl Vm {
                     self.adv_ip(2);
                 }
                 code::Opcode::Pop => {
-                    self.last_popped = Rc::new(self.pop());
+                    self.last_popped = self.pop();
                 }
                 code::Opcode::Add
                 | code::Opcode::Sub
@@ -209,20 +215,20 @@ impl Vm {
                 | code::Opcode::Div
                 | code::Opcode::Mod => self.exe_binary_op(op),
 
-                code::Opcode::True => self.push(&TRUE),
-                code::Opcode::False => self.push(&FALSE),
+                code::Opcode::True => self.push(Rc::new(TRUE)),
+                code::Opcode::False => self.push(Rc::new(FALSE)),
                 code::Opcode::Equal | code::Opcode::NotEqual | code::Opcode::GT => {
                     self.exe_comparison(op)
                 }
                 code::Opcode::Bang => self.exe_bang_op(),
                 code::Opcode::Minus => self.exe_pref_minux(),
-                code::Opcode::Null => self.push(&NULL),
+                code::Opcode::Null => self.push(Rc::new(NULL)),
                 code::Opcode::SetGlobal => {
                     let gi = code::Instructions::read_uint16(&ins.ins, ip + 1) as usize;
                     //ip += 2;
                     self.adv_ip(2);
                     //self.globals[gi] = self.pop()
-                    let pop_item = Rc::new(self.pop());
+                    let pop_item = self.pop();
                     self.globals.push_value(gi, pop_item);
                 }
                 code::Opcode::GetGlobal => {
@@ -231,7 +237,7 @@ impl Vm {
                     self.adv_ip(2);
 
                     //self.push(&self.globals[gi].clone())
-                    self.push(&self.globals.get_value(gi))
+                    self.push(self.globals.get_value(gi))
                 }
                 code::Opcode::Jump => {
                     let pos = code::Instructions::read_uint16(&ins.ins, ip + 1);
@@ -259,7 +265,7 @@ impl Vm {
 
                     let arr = self.build_arr(self.sp - num_of_elms, self.sp);
                     self.sp -= num_of_elms;
-                    self.push(&arr);
+                    self.push(Rc::new(arr));
                 }
 
                 code::Opcode::Hash => {
@@ -270,7 +276,7 @@ impl Vm {
                     let hash = self.build_hash(self.sp - num_of_elms, self.sp);
                     self.sp -= num_of_elms;
 
-                    self.push(&hash)
+                    self.push(Rc::new(hash))
                 }
                 code::Opcode::Index => {
                     let index = self.pop();
@@ -284,32 +290,36 @@ impl Vm {
                     self.sp = frm.borrow().get_bp() as usize - 1;
                     //frm.get_bp() as usize - 1;
                     //(*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize - 1; //frm.bp as usize - 1;
-                    self.push(&rvalue)
+                    self.push(rvalue)
                 }
                 code::Opcode::Return => {
                     let frm = self.pop_frame();
                     self.sp = frm.borrow().get_bp() as usize - 1;
                     //(*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize -1; //frm.bp as usize - 1;
                     //self.pop();
-                    self.push(&NULL);
+                    self.push(Rc::new(NULL));
                 }
                 code::Opcode::SetLocal => {
                     let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..]);
                     self.adv_ip(1);
                     let frm = self.current_frame().borrow().get_bp();
                     //self.current_frame().as_ref().borrow().get_bp(); //self.current_frame().bp;
-                    self.stack[(frm as usize) + (local_index as usize)] = self.pop()
+                    //self.stack[(frm as usize) + (local_index as usize)] = self.pop()
+                    //
+                    let pop_item = self.pop();
+                    self.stack
+                        .push(Some(frm as usize + local_index as usize), pop_item)
                 }
                 code::Opcode::GetLocal => {
                     let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..]) as usize;
                     self.adv_ip(1);
                     let frm_bp = self.current_frame().borrow().get_bp() as usize;
                     //self.current_frame().as_ref().borrow().get_bp() as usize; //self.current_frame().bp as usize;
-                    unsafe {
-                        let stack_obj = self.stack.get_unchecked(frm_bp + local_index).clone();
+                    //unsafe {
+                    let stack_obj = Rc::clone(self.stack.get(frm_bp + local_index));
 
-                        self.push(&stack_obj);
-                    }
+                    self.push(stack_obj);
+                    //}
 
                     //self.stack[frm_bp + local_index].clone();
                 }
@@ -334,7 +344,7 @@ impl Vm {
                     //Rc::clone(&self.current_frame().cl);
                     //Rc::clone(&(*self.current_frame()).borrow().cl); //&curframe.as_ref().borrow().cl; //&self.current_frame().cl.clone();
 
-                    self.push(&ccl.frees[f_index as usize])
+                    self.push(Rc::clone(&ccl.frees[f_index as usize]))
                 }
 
                 code::Opcode::CurrentClosure => {
@@ -343,7 +353,7 @@ impl Vm {
                     //Rc::clone(&self.current_frame().cl);
                     //&self.current_frame().as_ref().borrow().cl.clone();
 
-                    self.push(&Object::Closure(ccl));
+                    self.push(Rc::new(Object::Closure(ccl)));
                 }
                 code::Opcode::Show => {
                     let num_items = code::Instructions::read_u8(&ins.ins[ip + 1..]) as usize;
@@ -383,28 +393,26 @@ impl Vm {
         let mut i = 0;
         while i < num_free {
             //fr[i] = self.stack[self.sp - num_free + i].clone().into();
-            fr.push(Rc::new(
-                self.stack.get(self.sp - num_free + i).unwrap().clone(),
-            ));
+            fr.push(Rc::clone(self.stack.get(self.sp - num_free + i)));
             i += 1;
         }
 
         self.sp -= num_free;
 
-        let cls = &Object::Closure(Rc::new(Closure {
+        let cls = Object::Closure(Rc::new(Closure {
             fun: cf.clone(),
             frees: fr,
         }));
-        self.push(cls);
+        self.push(Rc::new(cls));
     }
 
     fn call_func(&mut self, num_args: usize) {
-        let stack_object = &self.stack[self.sp - 1 - num_args].clone();
-        //println!("STACK-OBJ{:?}" , stack_object);
-        //let Object::Closure(cf) = stack_object else{
-        //                panic!("stack object is not compiled function")
-        //            } ;
-        let Object::Closure(cf) = stack_object else{
+        let stack_object = Rc::clone(self.stack.get(self.sp - 1 - num_args)); //&self.stack[self.sp - 1 - num_args].clone();
+                                                                              //println!("STACK-OBJ{:?}" , stack_object);
+                                                                              //let Object::Closure(cf) = stack_object else{
+                                                                              //                panic!("stack object is not compiled function")
+                                                                              //            } ;
+        let Object::Closure(cf) = &*stack_object else{
                 println!("not closure");
                 if let Object::Closure(lcf) = self.last_pop(){
 
@@ -435,7 +443,7 @@ impl Vm {
         self.sp = fbp + cal.fun.num_locals;
     }
 
-    fn exe_index_expr(&mut self, left: Object, index: Object) {
+    fn exe_index_expr(&mut self, left: Rc<Object>, index: Rc<Object>) {
         if left.get_type() == ARRAY_OBJ && index.get_type() == NUMBER_OBJ {
             self.exe_arr_index(left, index)
         } else if left.get_type() == HASH_OBJ {
@@ -445,9 +453,9 @@ impl Vm {
         }
     }
 
-    fn exe_arr_index(&mut self, arr: Object, index: Object) {
-        let Object::Array { token : _ , value } = arr else { panic!("not array") };
-        let id: Option<i64> = if let Object::Number { token: _, value } = index {
+    fn exe_arr_index(&mut self, arr: Rc<Object>, index: Rc<Object>) {
+        let Object::Array { token : _ , value } = &*arr else { panic!("not array") };
+        let id: Option<i64> = if let Object::Number { token: _, value } = &*index {
             Some(value.get_as_i64())
         } else {
             None
@@ -456,14 +464,14 @@ impl Vm {
         let max = (value.len() - 1) as i64;
 
         if id.unwrap() < 0 || id.unwrap() > max {
-            self.push(&NULL)
+            self.push(Rc::new(NULL))
         } else {
-            self.push(&value[id.unwrap() as usize])
+            self.push(value[id.unwrap() as usize].clone())
         }
     }
 
-    fn exe_hash_index(&mut self, hash: Object, index: Object) {
-        let Object::Hash { token : _, pairs } = hash else{ panic!("not hash") };
+    fn exe_hash_index(&mut self, hash: Rc<Object>, index: Rc<Object>) {
+        let Object::Hash { token : _, pairs } = &*hash else{ panic!("not hash") };
         if !index.hashable() {
             panic!("index key is not hashable")
         }
@@ -472,9 +480,9 @@ impl Vm {
         };
         //println!("{:?}" , pairs);
         if let Some(v) = pairs.get(&hk) {
-            self.push(&v.value.clone())
+            self.push(v.value.clone())
         } else {
-            self.push(&NULL)
+            self.push(Rc::new(NULL))
         }
     }
 
@@ -486,14 +494,16 @@ impl Vm {
         while i < end {
             let k: Rc<Object>;
             let v: Rc<Object>;
-            unsafe {
-                k = Rc::new(self.stack.get_unchecked(i).clone());
-            }
+            //unsafe {
+            //    k = *self.stack.get(i); //Rc::new(self.stack.get_unchecked(i).clone());
+            //}
+            k = Rc::clone(self.stack.get(i));
 
             //let v =
-            unsafe {
-                v = Rc::new(self.stack.get_unchecked(i + 1).clone());
-            }
+            //unsafe {
+            //    v = *self.stack.get(i+1); //Rc::new(self.stack.get_unchecked(i + 1).clone());
+            //}
+            v = Rc::clone(self.stack.get(i + 1));
             if !k.hashable() {
                 panic!("key is not hashable")
             }
@@ -517,7 +527,7 @@ impl Vm {
         let mut i = start;
 
         while i < end {
-            elms[i - start] = Rc::new(self.stack[i].clone());
+            elms[i - start] = Rc::clone(self.stack.get(i)); //Rc::new(self.stack[i].clone());
             i += 1;
         }
 
@@ -541,29 +551,29 @@ impl Vm {
             panic!("negetion can only be applied on numbers -> {op:?}")
         }
 
-        let Object::Number { token : _, value } = op else {
+        let Object::Number { token : _, value } = &*op else {
             panic!("not a number")
         };
 
-        self.push(&Object::Number {
+        self.push(Rc::new(Object::Number {
             token: None,
             value: value.make_neg(),
-        })
+        }))
     }
 
     fn exe_bang_op(&mut self) {
         let o = self.pop();
 
-        match o {
+        match *o {
             Object::Bool { token: _, value } => {
                 if value {
-                    self.push(&FALSE)
+                    self.push(Rc::new(FALSE))
                 } else {
-                    self.push(&TRUE)
+                    self.push(Rc::new(TRUE))
                 }
             }
-            Object::Null => self.push(&TRUE),
-            _ => self.push(&FALSE),
+            Object::Null => self.push(Rc::new(TRUE)),
+            _ => self.push(Rc::new(FALSE)),
         };
     }
 
@@ -576,31 +586,31 @@ impl Vm {
         }
 
         match op {
-            code::Opcode::Equal => self.push(&bool_native_to_obj(right == left)),
-            code::Opcode::NotEqual => self.push(&bool_native_to_obj(left != right)),
+            code::Opcode::Equal => self.push(Rc::new(bool_native_to_obj(right == left))),
+            code::Opcode::NotEqual => self.push(Rc::new(bool_native_to_obj(left != right))),
             _ => {
                 panic!("unknonwn operator -> {op:?}")
             }
         }
     }
 
-    fn exe_comparison_number(&mut self, op: code::Opcode, left: Object, right: Object) {
-        let lval: Option<NumberToken> = if let Object::Number { token: _, value } = left {
-            Some(value)
+    fn exe_comparison_number(&mut self, op: code::Opcode, left: Rc<Object>, right: Rc<Object>) {
+        let lval: Option<NumberToken> = if let Object::Number { token: _, value } = &*left {
+            Some(value.clone())
         } else {
             None
         };
 
-        let rval: Option<NumberToken> = if let Object::Number { token: _, value } = right {
-            Some(value)
+        let rval: Option<NumberToken> = if let Object::Number { token: _, value } = &*right {
+            Some(value.clone())
         } else {
             None
         };
 
         match op {
-            code::Opcode::Equal => self.push(&bool_native_to_obj(lval == rval)),
-            code::Opcode::GT => self.push(&bool_native_to_obj(lval > rval)),
-            code::Opcode::NotEqual => self.push(&bool_native_to_obj(lval != rval)),
+            code::Opcode::Equal => self.push(Rc::new(bool_native_to_obj(lval == rval))),
+            code::Opcode::GT => self.push(Rc::new(bool_native_to_obj(lval > rval))),
+            code::Opcode::NotEqual => self.push(Rc::new(bool_native_to_obj(lval != rval))),
 
             _ => panic!("unknown comparison"),
         }
@@ -616,34 +626,34 @@ impl Vm {
                 panic!("only '+' is supported for strings")
             }
 
-            let Object::String { token : _, value : lval } = left else{
+            let Object::String { token : _, value : lval } = &*left else{
                 panic!("left object is not string")
             };
 
-            let Object::String { token : _, value : rval } = right else{
+            let Object::String { token : _, value : rval } = &*right else{
                 panic!("left object is not string")
             };
 
-            self.push(&Object::String {
+            self.push(Rc::new(Object::String {
                 token: None,
-                value: lval + &rval,
-            });
+                value: format!("{lval}{rval}"),
+            }));
 
             //            self.exe_binary_op_str(op, left, right)
         }
     }
 
-    fn exe_binary_op_number(&mut self, op: code::Opcode, left: Object, right: Object) {
-        let Object::Number { token : _, value } = left else {
+    fn exe_binary_op_number(&mut self, op: code::Opcode, left: Rc<Object>, right: Rc<Object>) {
+        let Object::Number { token : _, value } = &*left else {
             panic!("not a number")
         };
-        let lval = value;
+        let lval = value.clone();
 
-        let Object::Number { token : _, value } = right else {
+        let Object::Number { token : _, value } = &*right else {
             panic!("rval is not a number")
         };
 
-        let rval = value;
+        let rval = value.clone();
         let value: NumberToken;
 
         match op {
@@ -657,34 +667,36 @@ impl Vm {
             }
         }
 
-        self.push(&Object::Number { token: None, value });
+        self.push(Rc::new(Object::Number { token: None, value }));
     }
 
-    fn push(&mut self, obj: &Object) {
+    fn push(&mut self, obj: Rc<Object>) {
         if self.sp >= STACK_SIZE {
             panic!("stack overflow");
         }
-        if self.sp >= self.stack.len() {
-            self.stack.push(obj.to_owned())
+        if self.sp >= self.stack.len {
+            //self.stack.push(obj.to_owned())
+            self.stack.push(None, obj)
         } else {
-            self.stack[self.sp] = obj.to_owned()
+            //self.stack[self.sp] = obj.to_owned()
+            self.stack.push(Some(self.sp), obj)
         }
         //self.stack[self.sp] = obj.clone();
         //self.stack.push(obj.to_owned());
         self.sp += 1;
     }
 
-    fn pop(&mut self) -> Object {
+    fn pop(&mut self) -> Rc<Object> {
         let ip = self.sp - 1;
         //let obj = &self.stack[ip];
         //
         if self.sp == self.stack.len() {
             self.sp -= 1;
-            return self.stack.pop().expect("stack is empty");
+            return self.stack.pop();
         }
 
         //let obj = self.stack.pop().unwrap();
-        let obj = &self.stack[ip];
+        let obj = self.stack.get(ip); //&self.stack[ip];
         self.sp -= 1;
         obj.clone()
     }
