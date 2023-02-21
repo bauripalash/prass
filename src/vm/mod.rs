@@ -52,7 +52,7 @@ pub struct Vm {
 
 #[derive(Debug)]
 pub struct StackPool {
-    pub stack: Vec<Rc<RefCell<Object>>>,
+    pub stack: Vec<Rc<Object>>,
     pub len: usize,
 }
 
@@ -66,23 +66,23 @@ impl StackPool {
 
     pub fn push_at(&mut self, index: usize, obj: Object) {
         if index >= self.len {
-            self.stack.push(Rc::new(RefCell::new(obj)));
+            self.stack.push(Rc::new(obj));
             self.len += 1;
         } else {
-            self.stack[index] = Rc::new(RefCell::new(obj))
+            self.stack[index] = Rc::new(obj)
         }
     }
 
-    pub fn pop(&mut self) -> Rc<RefCell<Object>> {
+    pub fn pop(&mut self) -> Rc<Object> {
         self.len -= 1;
-        self.stack.pop().expect("empty stack")
+        unsafe { self.stack.pop().unwrap_unchecked() }
     }
 
-    pub fn get(&self, index: usize) -> &Rc<RefCell<Object>> {
+    pub fn get(&self, index: usize) -> &Rc<Object> {
         unsafe { self.stack.get_unchecked(index) }
     }
 
-    pub fn get_mut(&mut self, index: usize) -> &mut Rc<RefCell<Object>> {
+    pub fn get_mut(&mut self, index: usize) -> &mut Rc<Object> {
         unsafe { self.stack.get_unchecked_mut(index) }
     }
 }
