@@ -234,6 +234,32 @@ impl Compiler {
                 self.change_operand(jmppos, after_eb_pos);
             }
 
+            ast::Expr::WhileExpr {
+                token: _,
+                cond,
+                stmts,
+            } => {
+                let conpos = self.current_ins().ins.len();
+                //println!("C_COND->{cond}");
+                self.compiler_expr(cond);
+
+                let jntpos = self.emit(Opcode::JumpNotTruthy, Some(&vec![9999]));
+
+                self.compile_stmt(stmts);
+                //if self.is_last_ins(&Opcode::Pop){
+
+                //  self.remove_last_pop();
+                //}
+
+                //println!("{:?}" , stmts);
+                //self.emit(Opcode::Pop, None);
+
+                self.emit(Opcode::Jump, Some(&vec![conpos]));
+                let after_all_pos = self.emit(Opcode::Null, None);
+                self.change_operand(jntpos, after_all_pos);
+                //let after_con_pos = self.emit(, operands)
+            }
+
             ast::Expr::HashExpr { token: _, pairs } => {
                 let mut p = pairs.clone();
                 p.sort_by_key(|(k, _)| k.to_string());
@@ -274,6 +300,7 @@ impl Compiler {
                 let free_syms = self.sym_free_syms();
                 let num_locals = self.symtab.borrow().numdef;
                 let ins = self.leave_scope();
+                let ins_len = ins.ins.len();
 
                 for s in &free_syms {
                     self.load_symbol(s);
@@ -283,6 +310,7 @@ impl Compiler {
                     fnin: Rc::new(ins),
                     num_locals,
                     num_params: fun_params.len(),
+                    in_len: ins_len,
                 })));
                 let con = self.add_const(cmp_fn);
                 self.emit(Opcode::Closure, Some(&vec![con, free_syms.len()]));

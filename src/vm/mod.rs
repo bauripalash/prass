@@ -14,24 +14,16 @@ use self::global::GlobalStack;
 
 static STACK_SIZE: usize = 2048;
 
-const TRUE: Object = Object::Bool {
-    token: None,
-    value: true,
-};
-const FALSE: Object = Object::Bool {
-    token: None,
-    value: false,
-};
+//const TRUE: Object = Object::Bool {
+//    token: None,
+//    value: true,
+//};
+//const FALSE: Object = Object::Bool {
+//    token: None,
+//    value: false,
+//};
 
-const NULL: Object = Object::Null;
-
-const fn bool_native_to_obj(b: bool) -> Object {
-    if b {
-        TRUE
-    } else {
-        FALSE
-    }
-}
+//const NULL: Object = Object::Null;
 
 #[derive(Debug)]
 pub struct Vm {
@@ -42,6 +34,9 @@ pub struct Vm {
     frames: FramePool,
     frame_index: usize,
     last_popped: Rc<Object>,
+    c_null: Rc<Object>,
+    c_false: Rc<Object>,
+    c_true: Rc<Object>,
 }
 
 //pub type Pframe = Rc<RefCell<Frame>>;
@@ -66,7 +61,10 @@ impl StackPool {
                 self.stack.push(obj);
                 self.len += 1;
             } else {
-                self.stack[idx] = obj
+                unsafe {
+                    _ = std::mem::replace(self.stack.get_unchecked_mut(idx), obj);
+                }
+                //self.stack[idx] = obj
             }
         } else {
             self.stack.push(obj);
@@ -75,12 +73,21 @@ impl StackPool {
     }
 
     pub fn pop(&mut self) -> Rc<Object> {
-        self.len -= 1;
-        unsafe { self.stack.pop().unwrap_unchecked() }
+        if self.len > 0 {
+            self.len -= 1;
+        }
+        //unsafe { self.stack.pop().unwrap_unchecked() }
+        self.stack.pop().expect("stack is empty")
     }
 
     pub fn get(&self, index: usize) -> &Rc<Object> {
-        unsafe { self.stack.get_unchecked(index) }
+        //unsafe { self.stack.get_unchecked(index) }
+        // if index >= self.len(){
+        //    return self.stack.last().expect("stack is empty");
+        //}
+        self.stack
+            .get(index)
+            .expect(format!("{:?} -> {index}", self.stack).as_str())
     }
 
     pub fn get_mut(&mut self, index: usize) -> &mut Rc<Object> {
@@ -89,6 +96,10 @@ impl StackPool {
 
     pub fn len(&self) -> usize {
         self.stack.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -106,7 +117,23 @@ impl Vm {
             sp: 0,
             frames,
             frame_index: 1,
-            last_popped: Rc::new(NULL),
+            last_popped: Rc::new(Object::Null),
+            c_null: Rc::new(Object::Null),
+            c_false: Rc::new(Object::Bool {
+                token: None,
+                value: false,
+            }),
+            c_true: Rc::new(Object::Bool {
+                token: None,
+                value: true,
+            }),
+        }
+    }
+    fn bool_native_to_obj(&self, b: bool) -> Rc<Object> {
+        if b {
+            Rc::clone(&self.c_true)
+        } else {
+            Rc::clone(&self.c_false)
         }
     }
 
@@ -124,11 +151,35 @@ impl Vm {
         unsafe { self.frames.frames.get_unchecked(self.frame_index - 1) }
     }
 
+    fn get_cur_frame_ip(&self) -> i64 {
+        unsafe {
+            let x = self
+                .frames
+                .frames
+                .get_unchecked(self.frame_index - 1)
+                .as_ptr();
+            (*x).get_ip()
+        }
+    }
+
+    fn get_cur_frame_ilen(&self) -> i64 {
+        unsafe {
+            let x = self
+                .frames
+                .frames
+                .get_unchecked(self.frame_index - 1)
+                .as_ptr();
+            (*x).cl.fun.in_len as i64
+        }
+    }
+
     fn push_frame(&mut self, f: Frame) {
         if self.frame_index >= self.frames.len {
             self.frames.frames.push(Rc::new(RefCell::new(f)))
         } else {
             unsafe {
+                //_ = std::mem::replace(self.frames.frames.get_unchecked_mut(self.frame_index), Rc::new(RefCell::new(f)));
+
                 (*self.frames.frames.get_unchecked(self.frame_index).as_ptr()) = f;
             }
         }
@@ -182,25 +233,37 @@ impl Vm {
                 .frames
                 .get_unchecked(self.frame_index - 1)
                 .as_ptr();
+            //Rc::clone(&(*ptr).cl.fun.fnin)
             (*ptr).get_instructions()
         }
     }
 
     pub fn run(&mut self) {
-        while self.current_frame().borrow().get_ip()
-            < self.current_frame().borrow().get_ins_len() - 1
+        while self.get_cur_frame_ip() //self.current_frame().borrow().get_ip()
+            < self.get_cur_frame_ilen() - 1
+        //self.current_frame().borrow().get_ins_len() - 1
         {
             self.adv_ip(1);
             let ip = self.get_ip();
             let ins = self.get_cur_frame_ins();
             let op = code::u8_to_op(ins.ins[ip]);
+            //println!("OP->{:?}", op);
 
             match op {
                 code::Opcode::Const => {
                     let op_ins = &ins.ins;
-                    let con_index = Instructions::read_uint16(op_ins, ip + 1) as usize;
-                    let con_obj = self.constants[con_index].clone();
-                    self.push(con_obj);
+                    //println!("CON_INS{ins}");
+                    //println!("CON_INDEX_U16{:?}" , Instructions::read_uint16(op_ins, ip + 1));
+                    let mut con_index = Instructions::read_uint16(op_ins, ip + 1) as usize;
+                    //println!("CON_INDEX{con_index}");
+                    //if con_index > 255 { //What con_index would be 256?
+                    //    con_index = 0;
+                    //}
+                    unsafe {
+                        let con_obj = self.constants.get_unchecked(con_index); //[con_index].clone();
+
+                        self.push(Rc::clone(con_obj));
+                    }
 
                     //println!("{con_index:?}");
                     //ip += 2;
@@ -215,14 +278,14 @@ impl Vm {
                 | code::Opcode::Div
                 | code::Opcode::Mod => self.exe_binary_op(op),
 
-                code::Opcode::True => self.push(Rc::new(TRUE)),
-                code::Opcode::False => self.push(Rc::new(FALSE)),
+                code::Opcode::True => self.push(Rc::clone(&self.c_true)),
+                code::Opcode::False => self.push(Rc::clone(&self.c_false)),
                 code::Opcode::Equal | code::Opcode::NotEqual | code::Opcode::GT => {
                     self.exe_comparison(op)
                 }
                 code::Opcode::Bang => self.exe_bang_op(),
                 code::Opcode::Minus => self.exe_pref_minux(),
-                code::Opcode::Null => self.push(Rc::new(NULL)),
+                code::Opcode::Null => self.push(Rc::clone(&self.c_null)),
                 code::Opcode::SetGlobal => {
                     let gi = code::Instructions::read_uint16(&ins.ins, ip + 1) as usize;
                     //ip += 2;
@@ -241,8 +304,14 @@ impl Vm {
                 }
                 code::Opcode::Jump => {
                     let pos = code::Instructions::read_uint16(&ins.ins, ip + 1);
+                    //println!("{:?}" , pos);
+
                     //ip = (pos - 1) as usize
-                    self.set_ip((pos - 1) as usize)
+                    if pos > 0 {
+                        self.set_ip((pos - 1) as usize)
+                    } else {
+                        self.set_ip(0)
+                    }
                 }
 
                 code::Opcode::JumpNotTruthy => {
@@ -252,6 +321,8 @@ impl Vm {
                     self.adv_ip(2);
 
                     let cond = self.pop();
+                    //println!("STACK->{:?}", self.stack.stack);
+                    //println!("COND->{cond}");
 
                     if !self.is_obj_truthy(&cond) {
                         //ip = pos - 1;
@@ -287,38 +358,59 @@ impl Vm {
                     let rvalue = self.pop();
                     let frm = self.pop_frame();
                     //self.pop();
-                    self.sp = frm.borrow().get_bp() as usize - 1;
+
+                    unsafe {
+                        let ptr = frm.as_ptr();
+                        self.sp = ((*ptr).bp - 1) as usize;
+
+                        self.push(rvalue)
+                        //frm.borrow().get_bp() as usize - 1;
+                    }
                     //frm.get_bp() as usize - 1;
                     //(*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize - 1; //frm.bp as usize - 1;
-                    self.push(rvalue)
                 }
                 code::Opcode::Return => {
                     let frm = self.pop_frame();
-                    self.sp = frm.borrow().get_bp() as usize - 1;
+                    unsafe {
+                        self.sp = ((*frm.as_ptr()).bp - 1) as usize;
+                    }
+                    //self.sp = frm.borrow().get_bp() as usize - 1;
                     //(*frm).borrow().get_bp() as usize - 1; //frm.as_ref().borrow().get_bp() as usize -1; //frm.bp as usize - 1;
                     //self.pop();
-                    self.push(Rc::new(NULL));
+                    self.push(Rc::clone(&self.c_null));
                 }
                 code::Opcode::SetLocal => {
+                    //let prelen = self.stack.len();
                     let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..]);
                     self.adv_ip(1);
-                    let frm = self.current_frame().borrow().get_bp();
+                    let frm_index: usize;
+                    let pop_item = unsafe {
+                        frm_index = (*self.current_frame().as_ptr()).bp as usize;
+                        self.pop()
+                        //let frm = self.current_frame().borrow().get_bp();
+                    };
                     //self.current_frame().as_ref().borrow().get_bp(); //self.current_frame().bp;
                     //self.stack[(frm as usize) + (local_index as usize)] = self.pop()
                     //
-                    let pop_item = self.pop();
+                    //let pop_item = self.pop();
                     self.stack
-                        .push(Some(frm as usize + local_index as usize), pop_item)
+                        .push(Some(frm_index + local_index as usize), pop_item)
                 }
                 code::Opcode::GetLocal => {
                     let local_index = code::Instructions::read_u8(&ins.ins[ip + 1..]) as usize;
                     self.adv_ip(1);
-                    let frm_bp = self.current_frame().borrow().get_bp() as usize;
+                    //let frm_bp : usize;
+                    unsafe {
+                        let frm_bp = (*self.current_frame().as_ptr()).bp as usize;
+
+                        let stack_obj = Rc::clone(self.stack.get(frm_bp + local_index));
+
+                        self.push(stack_obj);
+                        //self.current_frame().borrow().get_bp() as usize;
+                    }
                     //self.current_frame().as_ref().borrow().get_bp() as usize; //self.current_frame().bp as usize;
                     //unsafe {
-                    let stack_obj = Rc::clone(self.stack.get(frm_bp + local_index));
 
-                    self.push(stack_obj);
                     //}
 
                     //self.stack[frm_bp + local_index].clone();
@@ -340,20 +432,30 @@ impl Vm {
                     self.adv_ip(1);
                     //                    let curframe = self.current_frame();
 
-                    let ccl = Rc::clone(&self.current_frame().borrow().cl);
+                    //let ccl : Rc<Closure>;
+                    unsafe {
+                        let ccl = Rc::clone(&(*self.current_frame().as_ptr()).cl);
+
+                        self.push(Rc::clone(&ccl.frees[f_index as usize]))
+                        //= Rc::clone(&self.current_frame().borrow().cl);
+                    }
+
                     //Rc::clone(&self.current_frame().cl);
                     //Rc::clone(&(*self.current_frame()).borrow().cl); //&curframe.as_ref().borrow().cl; //&self.current_frame().cl.clone();
-
-                    self.push(Rc::clone(&ccl.frees[f_index as usize]))
                 }
 
                 code::Opcode::CurrentClosure => {
                     //                    let ccl = self.current_frame().cl.clone();
-                    let ccl = Rc::clone(&self.current_frame().borrow().cl);
+                    //let ccl :Rc<Closure>;
+
+                    unsafe {
+                        let ccl = Rc::clone(&(*self.current_frame().as_ptr()).cl);
+
+                        self.push(Rc::new(Object::Closure(ccl)));
+                    }
+                    //= Rc::clone(&self.current_frame().borrow().cl);
                     //Rc::clone(&self.current_frame().cl);
                     //&self.current_frame().as_ref().borrow().cl.clone();
-
-                    self.push(Rc::new(Object::Closure(ccl)));
                 }
                 code::Opcode::Show => {
                     let num_items = code::Instructions::read_u8(&ins.ins[ip + 1..]) as usize;
@@ -407,20 +509,16 @@ impl Vm {
     }
 
     fn call_func(&mut self, num_args: usize) {
-        let stack_object = Rc::clone(self.stack.get(self.sp - 1 - num_args)); //&self.stack[self.sp - 1 - num_args].clone();
-                                                                              //println!("STACK-OBJ{:?}" , stack_object);
-                                                                              //let Object::Closure(cf) = stack_object else{
-                                                                              //                panic!("stack object is not compiled function")
-                                                                              //            } ;
-        let Object::Closure(cf) = &*stack_object else{
-                println!("not closure");
-                if let Object::Closure(lcf) = self.last_pop(){
-
-                    self.call_closure(lcf, num_args);
-                    return;
-
-                };
-
+        //println!("X{:?}->{:?}" , self.sp , num_args);
+        let stack_object = Rc::clone(self.stack.get(self.sp - 1 - num_args));
+        let Object::Closure(cf) = &*stack_object else
+        {
+            //    println!("not closure");
+            //    if let Object::Closure(lcf) = self.last_pop(){
+            //
+            //        self.call_closure(lcf, num_args);
+            //        return;
+             //   };
                     panic!("not closure -> panic");
 
         };
@@ -464,7 +562,7 @@ impl Vm {
         let max = (value.len() - 1) as i64;
 
         if id.unwrap() < 0 || id.unwrap() > max {
-            self.push(Rc::new(NULL))
+            self.push(Rc::clone(&self.c_null))
         } else {
             self.push(value[id.unwrap() as usize].clone())
         }
@@ -482,7 +580,7 @@ impl Vm {
         if let Some(v) = pairs.get(&hk) {
             self.push(v.value.clone())
         } else {
-            self.push(Rc::new(NULL))
+            self.push(Rc::clone(&self.c_null))
         }
     }
 
@@ -492,18 +590,17 @@ impl Vm {
         let mut i = start;
 
         while i < end {
-            let k: Rc<Object>;
-            let v: Rc<Object>;
+            let k: Rc<Object> = Rc::clone(self.stack.get(i));
+
+            let v: Rc<Object> = Rc::clone(self.stack.get(i + 1));
+
             //unsafe {
             //    k = *self.stack.get(i); //Rc::new(self.stack.get_unchecked(i).clone());
             //}
-            k = Rc::clone(self.stack.get(i));
-
             //let v =
             //unsafe {
             //    v = *self.stack.get(i+1); //Rc::new(self.stack.get_unchecked(i + 1).clone());
             //}
-            v = Rc::clone(self.stack.get(i + 1));
             if !k.hashable() {
                 panic!("key is not hashable")
             }
@@ -521,7 +618,7 @@ impl Vm {
 
     fn build_arr(&mut self, start: usize, end: usize) -> Object {
         let mut elms: Vec<Rc<Object>> = {
-            let data = Rc::new(NULL);
+            let data = Rc::clone(&self.c_null);
             vec![data; end - start]
         };
         let mut i = start;
@@ -567,27 +664,28 @@ impl Vm {
         match *o {
             Object::Bool { token: _, value } => {
                 if value {
-                    self.push(Rc::new(FALSE))
+                    self.push(Rc::clone(&self.c_false))
                 } else {
-                    self.push(Rc::new(TRUE))
+                    self.push(Rc::clone(&self.c_true))
                 }
             }
-            Object::Null => self.push(Rc::new(TRUE)),
-            _ => self.push(Rc::new(FALSE)),
+            Object::Null => self.push(Rc::clone(&self.c_true)),
+            _ => self.push(Rc::clone(&self.c_false)),
         };
     }
 
     fn exe_comparison(&mut self, op: code::Opcode) {
         let right = self.pop();
         let left = self.pop();
+        println!("{left:?} , {right:?}");
         if left.get_type() == NUMBER_OBJ && right.get_type() == NUMBER_OBJ {
             self.exe_comparison_number(op, left, right);
             return;
         }
 
         match op {
-            code::Opcode::Equal => self.push(Rc::new(bool_native_to_obj(right == left))),
-            code::Opcode::NotEqual => self.push(Rc::new(bool_native_to_obj(left != right))),
+            code::Opcode::Equal => self.push(self.bool_native_to_obj(right == left)),
+            code::Opcode::NotEqual => self.push(self.bool_native_to_obj(left != right)),
             _ => {
                 panic!("unknonwn operator -> {op:?}")
             }
@@ -595,22 +693,24 @@ impl Vm {
     }
 
     fn exe_comparison_number(&mut self, op: code::Opcode, left: Rc<Object>, right: Rc<Object>) {
-        let lval: Option<NumberToken> = if let Object::Number { token: _, value } = &*left {
-            Some(value.clone())
-        } else {
-            None
-        };
+        //let lval: Option<NumberToken> = if let Object::Number { token: _, value } = &*left {
+        //    Some(value.clone())
+        //} else {
+        //    None
+        //};
 
-        let rval: Option<NumberToken> = if let Object::Number { token: _, value } = &*right {
-            Some(value.clone())
-        } else {
-            None
+        let Object::Number { token : _, value  : lval} = &*left else{
+            panic!("not number");
+        } ;
+
+        let Object::Number { token : _, value : rval } = &*right else{
+            panic!("not a number");
         };
 
         match op {
-            code::Opcode::Equal => self.push(Rc::new(bool_native_to_obj(lval == rval))),
-            code::Opcode::GT => self.push(Rc::new(bool_native_to_obj(lval > rval))),
-            code::Opcode::NotEqual => self.push(Rc::new(bool_native_to_obj(lval != rval))),
+            code::Opcode::Equal => self.push(self.bool_native_to_obj(lval == rval)),
+            code::Opcode::GT => self.push(self.bool_native_to_obj(lval > rval)),
+            code::Opcode::NotEqual => self.push(self.bool_native_to_obj(lval != rval)),
 
             _ => panic!("unknown comparison"),
         }
@@ -687,28 +787,26 @@ impl Vm {
     }
 
     fn pop(&mut self) -> Rc<Object> {
-        let ip = self.sp - 1;
+        //let ip = self.sp - 1;
         //let obj = &self.stack[ip];
         //
-        if self.sp == self.stack.len() {
+        //println!("AT_POP->SP{} -> STACK_LEN{}" , self.sp , self.stack.len());
+        if self.sp == 0 {
+            return self.stack.pop();
+        }
+        if self.sp - 1 == self.stack.len() {
             self.sp -= 1;
             return self.stack.pop();
         }
 
         //let obj = self.stack.pop().unwrap();
-        let obj = self.stack.get(ip); //&self.stack[ip];
+        let obj = self.stack.get(self.sp - 1); //&self.stack[ip];
         self.sp -= 1;
         obj.clone()
+        //self.stack.pop()
     }
 
     pub fn last_pop(&self) -> Object {
         self.last_popped.as_ref().to_owned()
-        //println!("LAST-POP->{:?}->{:?}" , self.stack , self.last_popped);
-        //if let Some(lp) = self.stack.get(self.sp){
-        //    return lp.to_owned()
-        //}else{
-        //    return self.last_popped.as_ref().to_owned()
-        //}
-        //self.stack[self.sp].clone()
     }
 }

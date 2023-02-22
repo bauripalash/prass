@@ -105,6 +105,8 @@ impl Display for Object {
                     //result.push_str(format!("{}:{},", p.key , p.value).as_str())
                 }
             }
+            Self::Closure(cl) => result = cl.to_string(),
+            Self::Compfunc(cf) => result = cf.to_string(),
             _ => {}
         }
         write!(f, "{result}")
@@ -119,8 +121,9 @@ pub struct Closure {
 
 impl Closure {
     pub fn new(fnin: Rc<Instructions>) -> Self {
+        let l = fnin.ins.len();
         Self {
-            fun: CompFunc::new(fnin).into(),
+            fun: CompFunc::new(fnin, l).into(),
             frees: Vec::new(),
         }
     }
@@ -140,6 +143,7 @@ pub struct CompFunc {
     pub fnin: Rc<Instructions>,
     pub num_locals: usize,
     pub num_params: usize,
+    pub in_len: usize,
 }
 
 impl Display for CompFunc {
@@ -154,16 +158,18 @@ impl Default for CompFunc {
             fnin: Rc::new(Instructions::new()),
             num_locals: 0,
             num_params: 0,
+            in_len: 0,
         }
     }
 }
 
 impl CompFunc {
-    pub fn new(fnin: Rc<Instructions>) -> Self {
+    pub fn new(fnin: Rc<Instructions>, fn_len: usize) -> Self {
         Self {
             fnin,
             num_locals: 0,
             num_params: 0,
+            in_len: fn_len,
         }
     }
 }

@@ -528,6 +528,7 @@ impl<'pax> Parser<'pax> {
 
     fn parse_expr_list(&mut self, end: &TokenType) -> Vec<Rc<ast::Expr>> {
         let mut el: Vec<Rc<ast::Expr>> = Vec::new();
+        //println!("CURTOK->{:?}" , self.curtok);
         if !self.is_curtok(end) {
             let expr = self.parse_expr(P_LOWEST);
             //let Ok(expr) = raw_expr else{
@@ -537,7 +538,7 @@ impl<'pax> Parser<'pax> {
 
             el.push(expr);
         }
-        if self.is_peektok(end) {
+        if self.is_curtok(end) {
             self.next_token();
             return el;
         }
@@ -630,7 +631,7 @@ impl<'pax> Parser<'pax> {
         //    return Err(raw_cond_expr.err().unwrap());
         //};
 
-        if self.is_peektok(&TokenType::Rparen) {
+        if self.is_peektok(&TokenType::Colon) {
             self.next_token();
             self.next_token();
         }
@@ -735,6 +736,7 @@ impl<'pax> Parser<'pax> {
     }
 
     fn parse_call_expr(&mut self, func: Rc<ast::Expr>) -> Rc<ast::Expr> {
+        //println!("{func:?}");
         let token = self.curtok.clone();
         self.next_token();
 

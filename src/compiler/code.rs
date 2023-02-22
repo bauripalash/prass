@@ -234,6 +234,7 @@ impl Instructions {
 
         if insts.len() >= 2 {
             let (int_bytes, _) = insts[start..].split_at(std::mem::size_of::<u16>());
+            //println!("{:?}" , u16::from_le_bytes([int_bytes[0] , int_bytes[1]]));
             u16::from_be_bytes([int_bytes[0], int_bytes[1]])
         } else {
             panic!("u16 can not be built from supplied vector")
